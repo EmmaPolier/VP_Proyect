@@ -42,7 +42,7 @@ export function ItemVariant() {
       {/* Opción 2: Conductor */}
       <Item
         onClick={handleDriverClick}
-        className="cursor-pointer hover:ring-2 hover:ring-offset-2 transition-all"
+        className="cursor-pointer hover:ring-2 hover:ring-offset-2 transition-all        git branch -M main"
       >
         <ItemMedia variant="icon">
           <Truck />

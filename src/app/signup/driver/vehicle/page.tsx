@@ -1,12 +1,12 @@
 "use client"
 
-import { SignupForm } from "@/components/signup-form"
+import { VehicleRegistrationForm } from "@/components/vehicle-registration-form"
 
-export default function PassengerSignupPage() {
+export default function VehicleRegistrationPage() {
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
       <div className="w-full max-w-sm">
-        <SignupForm />
+        <VehicleRegistrationForm />
       </div>
     </div>
   )

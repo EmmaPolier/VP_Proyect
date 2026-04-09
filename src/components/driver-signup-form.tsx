@@ -21,46 +21,47 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
-export function SignupForm({
+export function DriverSignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  const handleCreateAccount = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
     
     try {
-      // Aquí iría la lógica de registro (API call)
+      // Simular API call
       await new Promise(resolve => setTimeout(resolve, 500))
-      router.push("/auth")
+      // Ir al registro de vehículo
+      router.push("/signup/driver/vehicle")
     } catch (error) {
       console.error("Error en registro:", error)
     } finally {
       setIsLoading(false)
     }
   }
-  
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">Crear tu cuenta</CardTitle>
+          <CardTitle className="text-xl">Crea tu cuenta</CardTitle>
           <CardDescription>
             Introduce tu correo electrónico a continuación para crear tu cuenta
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleCreateAccount}>
+          <form onSubmit={handleSubmit}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="name">Nombre completo</FieldLabel>
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Jose Luis Grajales"
+                  placeholder="Davison Jaramillo"
                 />
               </Field>
               <Field>
