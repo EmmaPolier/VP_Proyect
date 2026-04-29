@@ -1,0 +1,43 @@
+version: '29.4.1'
+
+services:
+  frontend:
+    container_name: vp_frontend
+    image: frontend
+    build: 
+      context: ./frontend
+      dockerfile: frontend.dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    restart: always
+    depends_on:
+      - backend
+
+  backend:
+    container_name: vp_backend
+    image: backend
+    build: 
+      context: ./backend
+      dockerfile: backend.dockerfile
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=postgresql://vp_user:vp_password@db:5432/vp_db?schema=public
+
+  db: 
+    container_name: vp_db
+    image: postgres:latest
+    restart: always
+    environment:
+      - POSTGRES_USER=vp_user
+      - POSTGRES_PASSWORD=vp_password
+      - POSTGRES_DB=vp_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql
+volumes:
+  db_data: {}
