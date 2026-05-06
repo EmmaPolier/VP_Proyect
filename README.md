@@ -43,6 +43,16 @@ Desde dentro del contenedor backend, corre las migraciones:
 docker exec -it vp_backend npx prisma migrate dev --name init
 ```
 
+## 💻 Desarrollo Local sin Docker
+
+Si prefieres desarrollar sin Docker, sigue los pasos en [SETUP_LOCAL.md](./SETUP_LOCAL.md)
+
+**Resumen rápido:**
+1. Instalar PostgreSQL localmente
+2. Crear BD y usuario (ver SETUP_LOCAL.md)
+3. Backend: `cd backend && npm install && npm run prisma:push && npm run dev`
+4. Frontend: `cd frontend && npm install && npm run dev`
+
 ## 📖 Uso
 
 ### 🔐 Crear una cuenta
