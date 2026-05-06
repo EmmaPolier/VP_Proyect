@@ -15,7 +15,6 @@ import {
 import {
   Field,
   FieldDescription,
-  FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
@@ -39,33 +38,29 @@ export function LoginForm({
     setLoading(true)
 
     try {
-      // Obtener todos los usuarios desde el backend
-      const response = await axios.get(`${API_URL}/users`)
-      const users = response.data
+      const response = await axios.post(`${API_URL}/login`, {
+        email,
+        password,
+      })
 
-      // Validar credenciales (email como usuario, password como contraseña)
-      const user = users.find(
-        (u: any) => u.email === email && u.name === password
+      localStorage.setItem(
+        "currentUser",
+        JSON.stringify({
+          id: response.data.id,
+          email: response.data.email,
+          name: response.data.name,
+          type: response.data.role === "DRIVER" ? "driver" : "passenger",
+        })
       )
 
-      if (!user) {
-        setError("Email o contraseña incorrectos")
-        setLoading(false)
-        return
-      }
-
-      // Guardar usuario en localStorage
-      localStorage.setItem("currentUser", JSON.stringify({
-        id: user.id,
-        email: user.email,
-        name: user.name
-      }))
-
-      // Redirigir al dashboard
       router.push("/dashboard")
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error:", err)
-      setError("Error al conectar con el servidor")
+      if (err.response?.data?.message) {
+        setError(err.response.data.message)
+      } else {
+        setError("Error al conectar con el servidor")
+      }
       setLoading(false)
     }
   }
@@ -89,7 +84,7 @@ export function LoginForm({
               <Input
                 id="email"
                 type="email"
-                placeholder="ejemplo@correo.com"
+                placeholder="ejemplo@elpoli.edu.co"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}

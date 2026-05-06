@@ -22,8 +22,33 @@ datasource db {
 }
 
 //User with id as int autoincrement, name as string and email as string
+enum UserRole {
+  PASSENGER
+  DRIVER
+}
+
 model User {
-  id    Int     @id @default(autoincrement())
-  name  String
-  email String
+  id                      Int       @id @default(autoincrement())
+  name                    String
+  email                   String    @unique
+  password                String?
+  role                    UserRole  @default(PASSENGER)
+  isVerified              Boolean   @default(false)
+  verificationCode        String?
+  verificationExpiresAt   DateTime?
+  vehicles                Vehicle[]
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @default(now()) @updatedAt
+}
+
+model Vehicle {
+  id        Int      @id @default(autoincrement())
+  brand     String
+  model     String
+  plate     String   @unique
+  color     String
+  driver    User     @relation(fields: [driverId], references: [id])
+  driverId  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }

@@ -34,7 +34,8 @@ export function SignupForm({
     name: "",
     email: "",
     password: "",
-    confirmPassword: ""
+    confirmPassword: "",
+    role: "PASSENGER"
   })
   const router = useRouter()
 
@@ -46,13 +47,19 @@ export function SignupForm({
     }))
   }
 
+  const handleRoleChange = (role: "PASSENGER" | "DRIVER") => {
+    setFormData(prev => ({
+      ...prev,
+      role,
+    }))
+  }
+
   const handleCreateAccount = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
-    
+
     try {
-      // Validaciones
       if (!formData.name.trim()) {
         setError("El nombre es requerido")
         setIsLoading(false)
@@ -61,6 +68,18 @@ export function SignupForm({
 
       if (!formData.email.trim()) {
         setError("El email es requerido")
+        setIsLoading(false)
+        return
+      }
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        setError("Introduce un email válido")
+        setIsLoading(false)
+        return
+      }
+
+      if (!formData.email.endsWith("@elpoli.edu.co")) {
+        setError("El email debe usar el dominio @elpoli.edu.co")
         setIsLoading(false)
         return
       }
@@ -77,15 +96,29 @@ export function SignupForm({
         return
       }
 
-      // Crear usuario en el backend
-      const response = await axios.post(`${API_URL}/users`, {
-        name: formData.password, // Usamos password como nombre de login
-        email: formData.email
+      const response = await axios.post(`${API_URL}/register`, {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
       })
 
       if (response.status === 201) {
-        // Usuario creado exitosamente
-        router.push("/login")
+        localStorage.setItem(
+          "pendingVerification",
+          JSON.stringify({
+            id: response.data.id,
+            email: response.data.email,
+            name: response.data.name,
+            type: response.data.role === "DRIVER" ? "driver" : "passenger",
+          })
+        )
+
+        if (formData.role === "DRIVER") {
+          router.push("/signup/driver/vehicle")
+        } else {
+          router.push("/auth")
+        }
       }
     } catch (err: any) {
       console.error("Error:", err)
@@ -97,7 +130,7 @@ export function SignupForm({
       setIsLoading(false)
     }
   }
-  
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
@@ -130,12 +163,39 @@ export function SignupForm({
                 <Input
                   id="email"
                   type="email"
-                  placeholder="ejemplo@correo.com"
+                  placeholder="ejemplo@elpoli.edu.co"
                   value={formData.email}
                   onChange={handleInputChange}
                   disabled={isLoading}
                   required
                 />
+              </Field>
+              <Field>
+                <FieldLabel>Tipo de cuenta</FieldLabel>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="role"
+                      value="PASSENGER"
+                      checked={formData.role === "PASSENGER"}
+                      onChange={() => handleRoleChange("PASSENGER")}
+                      disabled={isLoading}
+                    />
+                    Pasajero
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="role"
+                      value="DRIVER"
+                      checked={formData.role === "DRIVER"}
+                      onChange={() => handleRoleChange("DRIVER")}
+                      disabled={isLoading}
+                    />
+                    Conductor
+                  </label>
+                </div>
               </Field>
               <Field>
                 <Field className="grid grid-cols-2 gap-4">
