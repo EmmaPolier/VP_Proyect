@@ -7,9 +7,18 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// CAMBIO TEMPORAL para desarrollo sin Docker/PostgreSQL
+// ORIGINAL: provider = "postgresql" + url = env("DATABASE_URL")
+// El proyecto estaba configurado para PostgreSQL en puerto 5432
+// Se cambió a SQLite (dev.db) temporalmente para ejecutar sin dependencias externas
+// RESTAURAR A POSTGRES: 
+//   1. Cambiar "sqlite" por "postgresql"
+//   2. Cambiar url a: env("DATABASE_URL")
+//   3. Ejecutar: npx prisma migrate reset
+//   4. Verificar .env tiene: DATABASE_URL=postgresql://vp_user:vp_password@localhost:5432/vp_db?schema=public
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 //User with id as int autoincrement, name as string and email as string
