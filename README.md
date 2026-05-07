@@ -9,134 +9,119 @@ Frontend (Next.js 16)  →  Backend (Express.js)  →  PostgreSQL
      :3000                    :4000                   :5432
 ```
 
-## 🚀 Requisitos previos
+## 🚀 Quick Start (Desarrollo Local)
 
-- Docker y Docker Compose instalados
-- Git
-- Node.js 16+ (opcional, solo para desarrollo local)
+### Requisitos previos
 
-## 📦 Instalación y Ejecución
+- **Node.js 20+**
+- **PostgreSQL 15+** (instalado y corriendo en localhost:5432)
+- **Git**
 
-### 1. Clonar el repositorio
+### Instalación Rápida
 
-```bash
-git clone <tu-repo-url>
-cd VP_Proyect
+1. **Instalar dependencias:**
+   ```bash
+   cd backend && npm install
+   cd ../frontend && npm install
+   ```
+
+2. **Iniciar servidores:**
+   ```powershell
+   # Desde la raíz del proyecto (Windows PowerShell):
+   .\start-dev.ps1
+   ```
+
+3. **Acceder:**
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:4000
+
+## 📁 Estructura Limpia
+
+```
+VP_Proyect/
+├── backend/              # Express + Prisma + PostgreSQL
+│   ├── index.js         # Servidor
+│   ├── prisma/          # Schema y migraciones
+│   ├── .env             # Variables de entorno
+│   └── node_modules/
+├── frontend/            # Next.js + React
+│   ├── src/             # Componentes y páginas
+│   ├── .env.local       # Variables de entorno
+│   └── node_modules/
+├── start-dev.ps1        # Script rápido de inicio
+├── setup-db.ps1         # Setup de base de datos
+├── compose.yaml         # Docker Compose (opcional)
+└── README.md           # Este archivo
 ```
 
-### 2. Levantar todos los servicios con Docker
+## 🔌 API Endpoints
 
+### Usuarios
+- `GET /` - Información de la API
+- `GET /test` - Health check
+- `GET /users` - Listar usuarios
+- `POST /signup` - Registrar usuario
+- `POST /login` - Iniciar sesión
+- `POST /verify` - Verificar email
+
+### Vehículos
+- `POST /vehicles` - Registrar vehículo
+
+## 🗄️ Base de Datos
+
+**PostgreSQL** en `localhost:5432`
+- **Base de datos:** `vp_db`
+- **Usuario:** `postgres`
+- **Tablas:** User, Vehicle
+
+Migraciones automáticas con Prisma.
+
+## 📝 Variables de Entorno
+
+### Backend (.env)
+```
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/vp_db?schema=public
+EMAIL_HOST=smtp.example.com
+EMAIL_PORT=587
+EMAIL_USER=tu_usuario
+EMAIL_PASS=tu_contraseña
+```
+
+### Frontend (.env.local)
+```
+NEXT_PUBLIC_API_URL=http://localhost:4000
+```
+
+## 🛠️ Desarrollo
+
+### Backend
+```bash
+npm run dev              # Iniciar servidor
+npx prisma studio      # Abrir Prisma Studio
+```
+
+### Frontend
+```bash
+npm run dev            # Iniciar Next.js
+npm run build          # Build producción
+```
+
+## 🐳 Docker (Opcional)
+
+Si tienes Docker instalado:
 ```bash
 docker compose up -d
 ```
 
-Esto levantará:
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:4000
-- **PostgreSQL Database**: localhost:5432
+## 📚 Documentación Adicional
 
-### 3. Crear la base de datos (primera vez)
+- [API Endpoints](API_ENDPOINTS.md) - Documentación completa de endpoints
+- [Setup Local](SETUP_LOCAL.md) - Instrucciones de configuración detallada
+- [Troubleshooting](TROUBLESHOOTING.md) - Solución de problemas comunes
 
-Desde dentro del contenedor backend, corre las migraciones:
+## 📧 Contacto
 
-```bash
-docker exec -it vp_backend npx prisma migrate dev --name init
-```
-
-## 💻 Desarrollo Local sin Docker
-
-Si prefieres desarrollar sin Docker, sigue los pasos en [SETUP_LOCAL.md](./SETUP_LOCAL.md)
-
-**Resumen rápido:**
-1. Instalar PostgreSQL localmente
-2. Crear BD y usuario (ver SETUP_LOCAL.md)
-3. Backend: `cd backend && npm install && npm run prisma:push && npm run dev`
-4. Frontend: `cd frontend && npm install && npm run dev`
-
-## 📖 Uso
-
-### 🔐 Crear una cuenta
-
-1. Abre http://localhost:3000
-2. Haz clic en "Regístrate"
-3. Completa el formulario con:
-   - Nombre completo
-   - Email
-   - Contraseña (mínimo 8 caracteres)
-
-### 🔓 Iniciar sesión
-
-1. Usa el email y contraseña que registraste
-2. Serás redirigido al dashboard
-
-## 🛠️ Estructura del Proyecto
-
-```
-VP_Proyect/
-├── frontend/              # Next.js app (React 19)
-│   ├── src/
-│   │   ├── app/          # Rutas (login, signup, dashboard)
-│   │   ├── components/   # Componentes reutilizables
-│   │   └── lib/          # Utilidades
-│   ├── package.json
-│   └── frontend.dockerfile
-│
-├── backend/               # Express.js API
-│   ├── index.js          # Servidor Express
-│   ├── prisma/
-│   │   └── schema.prisma # Definición de modelos
-│   ├── package.json
-│   └── backend.dockerfile
-│
-├── compose.yaml          # Orquestación Docker
-└── README.md
-```
-
-## 🗄️ Base de datos
-
-### Modelo User
-
-```prisma
-model User {
-  id    Int     @id @default(autoincrement())
-  name  String
-  email String
-}
-```
-
-### Endpoints API
-
-- `GET /test` - Prueba del servidor
-- `GET /users` - Obtener todos los usuarios
-- `GET /users/:id` - Obtener usuario por ID
-- `POST /users` - Crear nuevo usuario
-  ```json
-  {
-    "name": "contraseña",
-    "email": "correo@ejemplo.com"
-  }
-  ```
-
-## 🔄 Flujo de desarrollo
-
-1. **Hacer cambios** en el código
-2. **Reconstruir contenedores** (si cambias dependencies):
-   ```bash
-   docker compose down
-   docker compose up -d
-   ```
-3. **Verificar cambios** en http://localhost:3000 o http://localhost:4000
-
-## 🐛 Solución de problemas
-
-### El frontend no se conecta al backend
-
-Asegúrate de que la variable `NEXT_PUBLIC_API_URL` esté configurada correctamente en `compose.yaml`:
-
-```yaml
-environment:
-  - NEXT_PUBLIC_API_URL=http://localhost:4000
-```
+Para más información sobre el proyecto, revisa la documentación incluida.
 
 ### Error de base de datos
 

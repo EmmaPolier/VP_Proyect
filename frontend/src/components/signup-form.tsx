@@ -32,9 +32,12 @@ export function SignupForm({
   const [error, setError] = useState("")
   const [formData, setFormData] = useState({
     name: "",
+    lastname: "",
+    document: "",
     email: "",
     password: "",
     confirmPassword: "",
+    birthDate: "",
     role: "PASSENGER"
   })
   const router = useRouter()
@@ -62,6 +65,18 @@ export function SignupForm({
     try {
       if (!formData.name.trim()) {
         setError("El nombre es requerido")
+        setIsLoading(false)
+        return
+      }
+
+      if (!formData.lastname.trim()) {
+        setError("El apellido es requerido")
+        setIsLoading(false)
+        return
+      }
+
+      if (!formData.document.trim()) {
+        setError("El documento es requerido")
         setIsLoading(false)
         return
       }
@@ -98,8 +113,11 @@ export function SignupForm({
 
       const response = await axios.post(`${API_URL}/register`, {
         name: formData.name,
+        lastname: formData.lastname,
+        document: formData.document,
         email: formData.email,
         password: formData.password,
+        birthDate: formData.birthDate || null,
         role: formData.role,
       })
 
@@ -156,6 +174,40 @@ export function SignupForm({
                   onChange={handleInputChange}
                   disabled={isLoading}
                   required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="lastname">Apellido</FieldLabel>
+                <Input
+                  id="lastname"
+                  type="text"
+                  placeholder="García"
+                  value={formData.lastname}
+                  onChange={handleInputChange}
+                  disabled={isLoading}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="document">Documento de identidad</FieldLabel>
+                <Input
+                  id="document"
+                  type="text"
+                  placeholder="123456789"
+                  value={formData.document}
+                  onChange={handleInputChange}
+                  disabled={isLoading}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="birthDate">Fecha de nacimiento (Opcional)</FieldLabel>
+                <Input
+                  id="birthDate"
+                  type="date"
+                  value={formData.birthDate}
+                  onChange={handleInputChange}
+                  disabled={isLoading}
                 />
               </Field>
               <Field>

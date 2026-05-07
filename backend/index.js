@@ -71,6 +71,26 @@ async function sendVerificationEmail(email, code) {
   }
 }
 
+// root route
+app.get('/', (req, res) => {
+  try {
+    res.status(200).json({
+      message: 'VP Project API',
+      version: '1.0.0',
+      status: 'running',
+      endpoints: {
+        test: '/test',
+        users: '/users',
+        signup: 'POST /signup',
+        login: 'POST /login',
+        verify: 'POST /verify'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({error: 'Internal Server Error'});
+  }
+});
+
 //test api
 app.get('/test', (req, res) => {
   try {
@@ -121,57 +141,82 @@ app.get('/users/:id', async (req, res) => {
 
 app.post('/register', async (req, res) => {
   try {
-    const {name, email, password, role} = req.body;
+    const {name, lastname, email, password, role, document, birthDate} = req.body;
 
-    if (!name?.trim() || !email?.trim() || !password?.trim() || !role) {
+    // Validaciones básicas
+    if (!name?.trim() || !lastname?.trim() || !email?.trim() || !password?.trim() || !role) {
       return res.status(400).json({message: 'Todos los campos son obligatorios.'});
     }
 
+    // Validar documento
+    if (!document?.trim()) {
+      return res.status(400).json({message: 'El documento es obligatorio.'});
+    }
+
+    // Validar email de dominio
     if (!email.endsWith('@elpoli.edu.co')) {
       return res.status(400).json({message: 'El email debe ser del dominio @elpoli.edu.co.'});
     }
 
+    // Validar longitud de contraseña
     if (password.length < 8) {
       return res.status(400).json({message: 'La contraseña debe tener al menos 8 caracteres.'});
     }
 
+    // Validar rol
     const normalizedRole = role.toUpperCase();
     if (!['PASSENGER', 'DRIVER'].includes(normalizedRole)) {
-      return res.status(400).json({message: 'El tipo de usuario debe ser pasajero o conductor.'});
+      return res.status(400).json({message: 'El tipo de usuario debe ser PASSENGER o DRIVER.'});
     }
 
-    const existing = await prisma.user.findUnique({where: {email}});
-    if (existing) {
+    // Verificar email único
+    const existingEmail = await prisma.user.findUnique({where: {email}});
+    if (existingEmail) {
       return res.status(409).json({message: 'Este email ya está registrado.'});
     }
 
+    // Verificar documento único
+    const existingDocument = await prisma.user.findUnique({where: {document}});
+    if (existingDocument) {
+      return res.status(409).json({message: 'Este documento ya está registrado.'});
+    }
+
+    // Generar código de verificación
     const verificationCode = generateVerificationCode();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
+    // Crear usuario
     const user = await prisma.user.create({
       data: {
         name,
+        lastname,
         email,
         password,
+        document,
         role: normalizedRole,
+        birthDate: birthDate ? new Date(birthDate) : null,
         isVerified: false,
         verificationCode,
         verificationExpiresAt: expiresAt,
+        statusId: 2, // ACTIVE por defecto (ID 2 en la tabla status)
       },
     });
 
+    // Enviar email de verificación
     await sendVerificationEmail(email, verificationCode);
 
     res.status(201).json({
       id: user.id,
       name: user.name,
+      lastname: user.lastname,
       email: user.email,
       role: user.role,
+      document: user.document,
       message: 'Registro exitoso. Revisa tu correo para verificar tu cuenta.',
     });
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({message: 'Error interno al registrar el usuario.'});
+    res.status(500).json({message: 'Error interno al registrar el usuario: ' + error.message});
   }
 });
 

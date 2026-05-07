@@ -94,60 +94,64 @@ export function InputOTPForm() {
   }
 
   return (
-    <Card className="mx-auto max-w-md border-0 shadow-none">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Ingresar código de verificación</CardTitle>
-        <CardDescription>
-          Le enviamos un código de 6 dígitos a tu correo electrónico.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleVerify} className="space-y-4">
-          <Field className="flex flex-col items-center">
-            <InputOTP
-              maxLength={6}
-              id="otp-verification"
-              value={code}
-              onChange={(value: any) => setCode(String(value || ""))}
-            >
-              <InputOTPGroup className="gap-2 *:data-[slot=input-otp-slot]:h-12 *:data-[slot=input-otp-slot]:w-11 *:data-[slot=input-otp-slot]:rounded-lg *:data-[slot=input-otp-slot]:text-xl *:data-[slot=input-otp-slot]:font-semibold *:data-[slot=input-otp-slot]:border-2">
-                <InputOTPSlot index={0} />
-                <InputOTPSlot index={1} />
-                <InputOTPSlot index={2} />
-              </InputOTPGroup>
-              <InputOTPSeparator className="mx-2 text-muted-foreground text-2xl" />
-              <InputOTPGroup className="gap-2 *:data-[slot=input-otp-slot]:h-12 *:data-[slot=input-otp-slot]:w-11 *:data-[slot=input-otp-slot]:rounded-lg *:data-[slot=input-otp-slot]:text-xl *:data-[slot=input-otp-slot]:font-semibold *:data-[slot=input-otp-slot]:border-2">
-                <InputOTPSlot index={3} />
-                <InputOTPSlot index={4} />
-                <InputOTPSlot index={5} />
-              </InputOTPGroup>
-            </InputOTP>
-            <FieldDescription className="text-center mt-4">
+    <div className="flex items-center justify-center min-h-screen">
+      <Card className="w-full max-w-md border-0 shadow-none">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Ingresar código de verificación</CardTitle>
+          <CardDescription>
+            Le enviamos un código de 6 dígitos a tu correo electrónico.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleVerify} className="space-y-6">
+            <div className="flex justify-center">
+              <InputOTP
+                maxLength={6}
+                id="otp-verification"
+                value={code}
+                onChange={(value: any) => setCode(String(value || ""))}
+              >
+                <InputOTPGroup className="gap-2 *:data-[slot=input-otp-slot]:h-12 *:data-[slot=input-otp-slot]:w-11 *:data-[slot=input-otp-slot]:rounded-lg *:data-[slot=input-otp-slot]:text-xl *:data-[slot=input-otp-slot]:font-semibold *:data-[slot=input-otp-slot]:border-2">
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                </InputOTPGroup>
+                <InputOTPSeparator className="mx-2 text-muted-foreground text-2xl" />
+                <InputOTPGroup className="gap-2 *:data-[slot=input-otp-slot]:h-12 *:data-[slot=input-otp-slot]:w-11 *:data-[slot=input-otp-slot]:rounded-lg *:data-[slot=input-otp-slot]:text-xl *:data-[slot=input-otp-slot]:font-semibold *:data-[slot=input-otp-slot]:border-2">
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+            
+            <FieldDescription className="text-center">
               ¿No recibiste el código?{" "}
               <a href="#" className="text-primary underline underline-offset-4 hover:text-primary/80">
                 Reenviar
               </a>
             </FieldDescription>
-          </Field>
-          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
 
-          <Button type="submit" className="w-full bg-black text-white hover:bg-black/90" disabled={loading || !pendingEmail}>
-            {loading ? "Verificando..." : "Verificar"}
-          </Button>
-        </form>
-      </CardContent>
-      <CardFooter className="flex flex-col gap-3">
-        <div className="text-xs text-muted-foreground text-center w-full">
-          Al hacer clic en continuar, aceptas nuestros{" "}
-          <a href="#" className="underline">
-            Términos de servicio
-          </a>{" "}
-          y nuestra{" "}
-          <a href="#" className="underline">
-            Política de privacidad
-          </a>
-        </div>
-      </CardFooter>
-    </Card>
+            {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+
+            <Button type="submit" className="w-full bg-black text-white hover:bg-black/90" disabled={loading || !pendingEmail}>
+              {loading ? "Verificando..." : "Verificar"}
+            </Button>
+          </form>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-3">
+          <div className="text-xs text-muted-foreground text-center w-full">
+            Al hacer clic en continuar, aceptas nuestros{" "}
+            <a href="#" className="underline">
+              Términos de servicio
+            </a>{" "}
+            y nuestra{" "}
+            <a href="#" className="underline">
+              Política de privacidad
+            </a>
+          </div>
+        </CardFooter>
+      </Card>
+    </div>
   )
 }

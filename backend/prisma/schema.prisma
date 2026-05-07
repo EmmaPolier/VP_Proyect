@@ -1,54 +1,135 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
 
-// CAMBIO TEMPORAL para desarrollo sin Docker/PostgreSQL
-// ORIGINAL: provider = "postgresql" + url = env("DATABASE_URL")
-// El proyecto estaba configurado para PostgreSQL en puerto 5432
-// Se cambió a SQLite (dev.db) temporalmente para ejecutar sin dependencias externas
-// RESTAURAR A POSTGRES: 
-//   1. Cambiar "sqlite" por "postgresql"
-//   2. Cambiar url a: env("DATABASE_URL")
-//   3. Ejecutar: npx prisma migrate reset
-//   4. Verificar .env tiene: DATABASE_URL=postgresql://vp_user:vp_password@localhost:5432/vp_db?schema=public
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-//User with id as int autoincrement, name as string and email as string
+// ========== ENUMS ==========
+
 enum UserRole {
   PASSENGER
   DRIVER
 }
 
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  PAYMENT
+  REFUND
+}
+
+// ========== MODELS ==========
+
+// Estados - Tabla para gestionar estados de usuario
+model Status {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String
+  users       User[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("status")
+}
+
+// Usuarios - Tabla principal
 model User {
   id                      Int       @id @default(autoincrement())
+  document                String    @unique
   name                    String
+  lastname                String
   email                   String    @unique
-  password                String?
+  password                String
   role                    UserRole  @default(PASSENGER)
+  birthDate               DateTime?
+  photoUrl                String?
+  rating                  Float     @default(5.0)
   isVerified              Boolean   @default(false)
   verificationCode        String?
   verificationExpiresAt   DateTime?
+  statusId                Int       @default(1)
+  status                  Status    @relation(fields: [statusId], references: [id])
+  
+  // Relaciones
   vehicles                Vehicle[]
+  wallet                  Wallet?
+  emailVerifications      EmailVerification[]
+  walletTransactions      WalletTransaction[]
+  
   createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @default(now()) @updatedAt
+  updatedAt               DateTime  @updatedAt
+
+  @@map("user")
 }
 
+// Vehículos - Tabla de vehículos de conductores
 model Vehicle {
   id        Int      @id @default(autoincrement())
   brand     String
   model     String
   plate     String   @unique
   color     String
-  driver    User     @relation(fields: [driverId], references: [id])
+  year      Int?
   driverId  Int
+  driver    User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  updatedAt DateTime @updatedAt
+
+  @@map("vehicle")
+}
+
+// Cartera Virtual - Billetera digital
+model Wallet {
+  id                  Int       @id @default(autoincrement())
+  userId              Int       @unique
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance             Decimal   @default(0.00) @db.Decimal(10, 2)
+  lastUpdated         DateTime  @default(now()) @updatedAt
+  transactions        WalletTransaction[]
+
+  @@map("wallet")
+}
+
+// Transacciones de Cartera
+model WalletTransaction {
+  id                  Int       @id @default(autoincrement())
+  userId              Int
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId            Int
+  wallet              Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type                TransactionType
+  amount              Decimal   @db.Decimal(10, 2)
+  resultingBalance    Decimal   @db.Decimal(10, 2)
+  description         String?
+  createdAt           DateTime  @default(now())
+
+  @@map("wallet_transaction")
+}
+
+// Verificación de Email
+model EmailVerification {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code              String    @unique
+  expiresAt         DateTime
+  used              Boolean   @default(false)
+  usedAt            DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@map("email_verification")
 }
