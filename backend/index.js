@@ -164,23 +164,62 @@ app.get('/health', async (req, res) => {
 
 app.post('/register', async (req, res) => {
   const { 
-    documento, 
+    // Nuevo formato (driver-signup-form.tsx)
+    name,
+    email, 
+    password,
+    role,
+    // Formato antiguo (signup-form.tsx)
+    documento,
     nombres, 
     primerApellido,
     segundoApellido,
-    email, 
     telefono, 
     fechaNacimiento,
     contrasena,
     fotoUrl,
-    perfil // 'PASAJERO' o 'CONDUCTOR'
+    perfil
   } = req.body;
 
   let connection;
   try {
-    // Validaciones básicas
-    if (!documento || !nombres || !email || !telefono || !contrasena) {
-      return res.status(400).json({ error: 'Campos requeridos faltantes' });
+    // Detectar qué formato está siendo usado
+    const isNewFormat = !!(name || password || role);
+    const isOldFormat = !!(documento && nombres && contrasena);
+
+    if (!isNewFormat && !isOldFormat) {
+      return res.status(400).json({ error: 'Formato de registro no válido' });
+    }
+
+    // Normalizar campos a valores comunes
+    let docValue, nombreValue, primerApellidoValue, segundoApellidoValue, emailValue, telefonoValue, fechaNacimientoValue, passwordValue, perfilValue;
+
+    if (isNewFormat) {
+      // Formato nuevo: simplificar usando los valores enviados
+      if (!name || !email || !password) {
+        return res.status(400).json({ error: 'Nombre, email y contraseña son requeridos' });
+      }
+
+      docValue = documento || email.substring(0, 10).toUpperCase();
+      nombreValue = name;
+      primerApellidoValue = name.split(' ')[0] || name;
+      segundoApellidoValue = name.split(' ').slice(1).join(' ') || null;
+      emailValue = email;
+      telefonoValue = telefono || '0000000000';
+      fechaNacimientoValue = fechaNacimiento || '2000-01-01';
+      passwordValue = password;
+      perfilValue = role === 'DRIVER' ? 'CONDUCTOR' : (role || 'PASAJERO');
+    } else {
+      // Formato antiguo: usar los valores exactos
+      docValue = documento;
+      nombreValue = nombres;
+      primerApellidoValue = primerApellido;
+      segundoApellidoValue = segundoApellido || null;
+      emailValue = email;
+      telefonoValue = telefono || '0000000000';
+      fechaNacimientoValue = fechaNacimiento || '2000-01-01';
+      passwordValue = contrasena;
+      perfilValue = perfil || 'PASAJERO';
     }
 
     connection = await getConnection();
@@ -188,7 +227,7 @@ app.post('/register', async (req, res) => {
     // Verificar si usuario ya existe
     const checkUser = await connection.execute(
       `SELECT DOCUMENTO_USU FROM USUARIO WHERE DOCUMENTO_USU = :documento`,
-      { documento }
+      { documento: docValue }
     );
 
     if (checkUser.rows && checkUser.rows.length > 0) {
@@ -203,7 +242,7 @@ app.post('/register', async (req, res) => {
     const idEstado = estadoResult.rows ? estadoResult.rows[0][0] : 1;
 
     // Crear usuario
-    const hashedPassword = hashPassword(contrasena);
+    const hashedPassword = hashPassword(passwordValue);
     
     await connection.execute(
       `INSERT INTO USUARIO 
@@ -215,13 +254,13 @@ app.post('/register', async (req, res) => {
         :email, :telefono, TO_DATE(:fechaNacimiento, 'YYYY-MM-DD'),
         :contrasena, :fotoUrl, 0, SYSDATE, :idEstado)`,
       {
-        documento,
-        nombres,
-        primerApellido,
-        segundoApellido: segundoApellido || null,
-        email,
-        telefono,
-        fechaNacimiento,
+        documento: docValue,
+        nombres: nombreValue,
+        primerApellido: primerApellidoValue,
+        segundoApellido: segundoApellidoValue,
+        email: emailValue,
+        telefono: telefonoValue,
+        fechaNacimiento: fechaNacimientoValue,
         contrasena: hashedPassword,
         fotoUrl: fotoUrl || 'https://via.placeholder.com/150',
         idEstado
@@ -231,7 +270,7 @@ app.post('/register', async (req, res) => {
     // Obtener perfil
     const perfilResult = await connection.execute(
       `SELECT ID_PER FROM PERFIL WHERE NOMBRE_PER = :perfil`,
-      { perfil: perfil || 'PASAJERO' }
+      { perfil: perfilValue }
     );
 
     const idPerfil = perfilResult.rows ? perfilResult.rows[0][0] : 1;
@@ -243,7 +282,7 @@ app.post('/register', async (req, res) => {
        VALUES 
        (SEQ_USUARIO_PERFIL.NEXTVAL, :documento, :idPerfil, 5.0, SYSDATE)`,
       {
-        documento,
+        documento: docValue,
         idPerfil
       }
     );
@@ -258,28 +297,41 @@ app.post('/register', async (req, res) => {
        VALUES 
        (SEQ_VERIFICACION_CORREO.NEXTVAL, :documento, :codigo, TO_DATE(:expiracion, 'YYYY-MM-DD HH24:MI:SS'), 'N', SYSDATE)`,
       {
-        documento,
+        documento: docValue,
         codigo,
         expiracion: expiracion.toISOString().split('T').join(' ').substring(0, 19)
       }
     );
 
     // Enviar email (comentado por ahora)
-    console.log(`Código de verificación para ${email}: ${codigo}`);
+    console.log(`Código de verificación para ${emailValue}: ${codigo}`);
 
     // Confirmar la transacción
     await connection.commit();
 
-    res.status(201).json({ 
-      message: 'Usuario registrado. Verifica tu email.',
-      usuario: {
-        documento,
-        email
-      }
-    });
+    // Retornar formato que el frontend espera
+    if (isNewFormat) {
+      // Formato nuevo (driver-signup-form.tsx)
+      res.status(201).json({ 
+        message: 'Usuario registrado. Verifica tu email.',
+        id: docValue,
+        email: emailValue,
+        name: nombreValue
+      });
+    } else {
+      // Formato antiguo (signup-form.tsx)
+      res.status(201).json({ 
+        message: 'Usuario registrado. Verifica tu email.',
+        usuario: {
+          documento: docValue,
+          email: emailValue
+        }
+      });
+    }
 
   } catch (error) {
     console.error('Error en register:', error);
+    console.error('Stack:', error.stack);
     res.status(500).json({ error: error.message });
   } finally {
     if (connection) {
@@ -413,6 +465,13 @@ app.post('/vehicles', async (req, res) => {
       return res.status(400).json({ error: 'Campos requeridos faltantes' });
     }
 
+    // Validar longitud de placa (máximo 6 caracteres)
+    if (plate.length > 6) {
+      return res.status(400).json({ 
+        error: `La placa "${plate}" excede el máximo de 6 caracteres permitidos. Recibido: ${plate.length} caracteres.` 
+      });
+    }
+
     connection = await getConnection();
 
     // Verificar que el usuario existe y es conductor
@@ -428,31 +487,65 @@ app.post('/vehicles', async (req, res) => {
       return res.status(400).json({ error: 'Usuario no es conductor' });
     }
 
-    // Obtener IDs de marca, modelo, color (usando defaults si no existen)
+    // Obtener IDs de marca, modelo, color
     const marcaResult = await connection.execute(
       `SELECT ID_MAR FROM MARCA_VEHICULO WHERE NOMBRE_MAR = :brand`,
       { brand: brand.toUpperCase() }
     );
-    const marcaId = marcaResult.rows ? marcaResult.rows[0][0] : 1;
+    
+    if (!marcaResult.rows || marcaResult.rows.length === 0) {
+      return res.status(400).json({ 
+        error: `Marca "${brand}" no encontrada. Marcas disponibles: CHEVROLET, RENAULT, MAZDA, KIA, TOYOTA` 
+      });
+    }
+    const marcaId = marcaResult.rows[0][0];
 
     const modeloResult = await connection.execute(
       `SELECT ID_MOD FROM MODELO_VEHICULO WHERE NOMBRE_MOD = :model`,
       { model: model.toUpperCase() }
     );
-    const modeloId = modeloResult.rows ? modeloResult.rows[0][0] : 1;
+    
+    if (!modeloResult.rows || modeloResult.rows.length === 0) {
+      return res.status(400).json({ 
+        error: `Modelo "${model}" no encontrado. Modelos disponibles: SPARK, SAIL, LOGAN, SANDERO, CX-3` 
+      });
+    }
+    const modeloId = modeloResult.rows[0][0];
 
     const colorResult = await connection.execute(
       `SELECT ID_COL FROM COLOR_VEHICULO WHERE NOMBRE_COL = :color`,
       { color: color.toUpperCase() }
     );
-    const colorId = colorResult.rows ? colorResult.rows[0][0] : 1;
+    
+    if (!colorResult.rows || colorResult.rows.length === 0) {
+      return res.status(400).json({ 
+        error: `Color "${color}" no encontrado. Colores disponibles: BLANCO, NEGRO, GRIS, ROJO, AZUL` 
+      });
+    }
+    const colorId = colorResult.rows[0][0];
 
     // Obtener estado ACTIVO para vehículos
     const estadoResult = await connection.execute(
       `SELECT ID_EVE FROM ESTADO_VEHICULO WHERE NOMBRE_EVE = 'ACTIVO'`
     );
     
-    const idEstado = estadoResult.rows ? estadoResult.rows[0][0] : 1;
+    if (!estadoResult.rows || estadoResult.rows.length === 0) {
+      return res.status(500).json({ error: 'Estado ACTIVO no configurado en la base de datos' });
+    }
+    const idEstado = estadoResult.rows[0][0];
+
+    console.log('Preparando INSERT VEHICULO con:',  {
+      documento: driverId,
+      marcaId,
+      modeloId,
+      colorId,
+      idEstado,
+      placa: plate,
+      soatUrl: soatUrl || null,
+      licenciaUrl: licenciaUrl || null,
+      tarjetaUrl: tarjetaUrl || null,
+      vehiculoUrl: fotoUrl || null
+    });
 
     // Crear vehículo
     await connection.execute(
@@ -486,7 +579,22 @@ app.post('/vehicles', async (req, res) => {
 
   } catch (error) {
     console.error('Error en POST /vehicles:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Stack:', error.stack);
+    
+    // Retornar error más específico
+    let errorMessage = 'Error al registrar el vehículo';
+    
+    if (error.code === 'ORA-01400') {
+      errorMessage = 'Campo requerido faltante en la base de datos';
+    } else if (error.code === 'ORA-02291') {
+      errorMessage = 'Referencia inválida (usuario, marca, modelo o color no existe)';
+    } else if (error.code === 'ORA-00001') {
+      errorMessage = 'La placa del vehículo ya existe';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.status(500).json({ error: errorMessage });
   } finally {
     if (connection) {
       try {

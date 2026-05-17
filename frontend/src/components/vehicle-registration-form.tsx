@@ -88,11 +88,25 @@ export function VehicleRegistrationForm({
         return
       }
 
+      // Validar longitud de placa (máximo 6 caracteres en la BD)
+      const plateSinGuion = formData.plate.replace(/-/g, '')
+      if (plateSinGuion.length > 6) {
+        setError("La placa no puede exceder 6 caracteres (sin contar guiones).")
+        setIsLoading(false)
+        return
+      }
+
+      if (plateSinGuion.length < 1) {
+        setError("La placa debe tener al menos 1 carácter.")
+        setIsLoading(false)
+        return
+      }
+
       console.log("Enviando vehículo:", {
         driverId,
         brand: formData.brand,
         model: formData.model,
-        plate: formData.plate,
+        plate: plateSinGuion,
         color: formData.color,
         soatUrl: formData.soatUrl,
         licenciaUrl: formData.licenciaUrl,
@@ -104,7 +118,7 @@ export function VehicleRegistrationForm({
         driverId,
         brand: formData.brand,
         model: formData.model,
-        plate: formData.plate,
+        plate: plateSinGuion,
         color: formData.color,
         soatUrl: formData.soatUrl,
         licenciaUrl: formData.licenciaUrl,
@@ -159,7 +173,7 @@ export function VehicleRegistrationForm({
                 <Input
                   id="model"
                   type="text"
-                  placeholder="2020"
+                  placeholder="SPARK"
                   value={formData.model}
                   onChange={handleInputChange}
                   disabled={isLoading}
@@ -173,7 +187,7 @@ export function VehicleRegistrationForm({
                     <Input
                       id="plate"
                       type="text"
-                      placeholder="ABC-1234"
+                      placeholder="ABC123"
                       value={formData.plate}
                       onChange={handleInputChange}
                       disabled={isLoading}
