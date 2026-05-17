@@ -1,152 +1,96 @@
-# VP Project - Aplicación de Transporte
+# VP Project - Aplicación de Transporte 🚗
 
 Aplicación full-stack para gestión de viajes con conductores y pasajeros.
 
 ## 🏗️ Arquitectura
 
 ```
-Frontend (Next.js 16)  →  Backend (Express.js)  →  PostgreSQL
-     :3000                    :4000                   :5432
+Frontend (Next.js)  →  Backend (Express.js)  →  SQLite/Oracle
+     :3000              :4000                   (Desarrollo/Producción)
 ```
 
-## 🚀 Quick Start (Desarrollo Local)
+## 🚀 Quick Start - 3 Pasos (5 minutos)
 
-### Requisitos previos
+### 1️⃣ Instalar dependencias
+```powershell
+.\install-dependencies.ps1
+```
 
-- **Node.js 20+**
-- **PostgreSQL 15+** (instalado y corriendo en localhost:5432)
-- **Git**
+### 2️⃣ Inicializar base de datos
+```powershell
+cd backend
+npx prisma migrate dev --name init
+cd ..
+```
 
-### Instalación Rápida
+### 3️⃣ Iniciar aplicación
+```powershell
+.\start-dev.ps1
+```
 
-1. **Instalar dependencias:**
-   ```bash
-   cd backend && npm install
-   cd ../frontend && npm install
-   ```
+✅ **¡Listo!** Accede a:
+- Frontend: http://localhost:3000
+- Backend:  http://localhost:4000
 
-2. **Iniciar servidores:**
-   ```powershell
-   # Desde la raíz del proyecto (Windows PowerShell):
-   .\start-dev.ps1
-   ```
+---
 
-3. **Acceder:**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:4000
+## 📖 Documentación Completa
 
-## 📁 Estructura Limpia
+👉 **[Ver guía de instalación detallada](SETUP.md)** para instrucciones paso a paso, requisitos previos, troubleshooting y más.
+
+## 📁 Estructura del Proyecto
 
 ```
 VP_Proyect/
-├── backend/              # Express + Prisma + PostgreSQL
-│   ├── index.js         # Servidor
-│   ├── prisma/          # Schema y migraciones
-│   ├── .env             # Variables de entorno
-│   └── node_modules/
-├── frontend/            # Next.js + React
-│   ├── src/             # Componentes y páginas
-│   ├── .env.local       # Variables de entorno
-│   └── node_modules/
-├── start-dev.ps1        # Script rápido de inicio
-├── setup-db.ps1         # Setup de base de datos
-├── compose.yaml         # Docker Compose (opcional)
-└── README.md           # Este archivo
+├── backend/                    # Express.js + Prisma
+│   ├── index.js               # Servidor principal
+│   ├── prisma/
+│   │   ├── schema.prisma      # Esquema de base de datos
+│   │   └── migrations/        # Historial de cambios
+│   ├── .env                   # Variables de entorno (no hacer git push)
+│   ├── package.json
+│   └── vamonospues.db         # Base de datos SQLite (local)
+│
+├── frontend/                   # Next.js + React + TailwindCSS
+│   ├── src/
+│   │   ├── app/               # Rutas y páginas
+│   │   ├── components/        # Componentes reutilizables
+│   │   └── hooks/             # Custom hooks
+│   ├── .env.local             # Variables de entorno
+│   ├── package.json
+│   └── next.config.ts
+│
+├── scripts/                    # Scripts SQL para base de datos
+│   ├── 01-schema-complete.sql
+│   ├── 02-data-initial.sql
+│   └── ...
+│
+├── SETUP.md                    # ⭐ Guía de instalación detallada
+├── install-dependencies.ps1    # Script para instalar dependencias
+├── start-dev.ps1              # Script para iniciar la app
+├── .env.example               # Ejemplo de variables
+└── README.md                  # Este archivo
 ```
 
-## 🔌 API Endpoints
+## 🔧 Tecnologías
 
-### Usuarios
-- `GET /` - Información de la API
-- `GET /test` - Health check
-- `GET /users` - Listar usuarios
-- `POST /signup` - Registrar usuario
-- `POST /login` - Iniciar sesión
-- `POST /verify` - Verificar email
+- **Frontend:** Next.js 16, React 19, TailwindCSS
+- **Backend:** Express.js, Prisma ORM
+- **Database:** SQLite (desarrollo), Oracle (producción)
+- **Auth:** JWT + Bcrypt
+- **Email:** Nodemailer (Gmail)
 
-### Vehículos
-- `POST /vehicles` - Registrar vehículo
+## 📚 Documentación
 
-## 🗄️ Base de Datos
+- **[SETUP.md](SETUP.md)** ⭐ - Guía completa paso a paso (requisitos previos, instalación, configuración)
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** 🆘 - Solución de problemas comunes
+- **[scripts/](scripts/)** - Scripts SQL para base de datos (DDL, constraints, índices, datos)
 
-**PostgreSQL** en `localhost:5432`
-- **Base de datos:** `vp_db`
-- **Usuario:** `postgres`
-- **Tablas:** User, Vehicle
+## 🤝 Contribuir
 
-Migraciones automáticas con Prisma.
-
-## 📝 Variables de Entorno
-
-### Backend (.env)
-```
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/vp_db?schema=public
-EMAIL_HOST=smtp.example.com
-EMAIL_PORT=587
-EMAIL_USER=tu_usuario
-EMAIL_PASS=tu_contraseña
-```
-
-### Frontend (.env.local)
-```
-NEXT_PUBLIC_API_URL=http://localhost:4000
-```
-
-## 🛠️ Desarrollo
-
-### Backend
-```bash
-npm run dev              # Iniciar servidor
-npx prisma studio      # Abrir Prisma Studio
-```
-
-### Frontend
-```bash
-npm run dev            # Iniciar Next.js
-npm run build          # Build producción
-```
-
-## 🐳 Docker (Opcional)
-
-Si tienes Docker instalado:
-```bash
-docker compose up -d
-```
-
-## 📚 Documentación Adicional
-
-- [API Endpoints](API_ENDPOINTS.md) - Documentación completa de endpoints
-- [Setup Local](SETUP_LOCAL.md) - Instrucciones de configuración detallada
-- [Troubleshooting](TROUBLESHOOTING.md) - Solución de problemas comunes
-
-## 📧 Contacto
-
-Para más información sobre el proyecto, revisa la documentación incluida.
-
-### Error de base de datos
-
-Verifica que PostgreSQL está corriendo:
-
-```bash
-docker ps | grep vp_db
-```
-
-### Limpiar todo y empezar de cero
-
-```bash
-docker compose down -v  # Elimina volúmenes
-docker compose up -d    # Levanta nuevamente
-```
-
-## 📝 Variables de entorno
-
-El archivo `.env` en el backend está configurado automáticamente por Docker Compose. No es necesario modificarlo.
-
-## 🤝 Contribuciones
-
-1. Crea una rama para tu feature: `git checkout -b feature/tu-feature`
-2. Commit tus cambios: `git commit -m "Agrega tu feature"`
-3. Push a la rama: `git push origin feature/tu-feature`
+1. Crea una rama: `git checkout -b feature/nombre`
+2. Commit: `git commit -m "Descripción del cambio"`
+3. Push: `git push origin feature/nombre`
 4. Abre un Pull Request
 
 ## 📄 Licencia
