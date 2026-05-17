@@ -1,339 +1,480 @@
-require('dotenv').config();
-const express = require('express');
-const nodemailer = require('nodemailer');
-const {PrismaClient} = require('@prisma/client');
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
+import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 
-const prisma = new PrismaClient();
+dotenv.config();
+
 const app = express();
+const prisma = new PrismaClient();
 
-//json
+// Middleware
+app.use(cors());
 app.use(express.json());
 
-//cors
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  next();
+// ============================================================================
+// UTILITIES
+// ============================================================================
+
+const hashPassword = (password) => {
+  return crypto.createHash('sha256').update(password).digest('hex');
+};
+
+const generateVerificationCode = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Email transporter (configure with your Gmail credentials)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
+  },
 });
 
-let cachedTransporter = null;
+// ============================================================================
+// HEALTH CHECK
+// ============================================================================
 
-async function getMailTransporter() {
-  if (cachedTransporter) return cachedTransporter;
-
-  if (process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    cachedTransporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: Number(process.env.EMAIL_PORT || 587),
-      secure: process.env.EMAIL_SECURE === 'true',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-  } else {
-    const testAccount = await nodemailer.createTestAccount();
-    cachedTransporter = nodemailer.createTransport({
-      host: testAccount.smtp.host,
-      port: testAccount.smtp.port,
-      secure: testAccount.smtp.secure,
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
-      },
-    });
-    console.log('Using Ethereal test account for email sending.');
-    console.log('Preview emails at: https://ethereal.email/messages');
-  }
-
-  return cachedTransporter;
-}
-
-function generateVerificationCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-async function sendVerificationEmail(email, code) {
-  const transporter = await getMailTransporter();
-
-  const mailOptions = {
-    from: process.env.EMAIL_FROM || 'no-reply@elpoli.edu.co',
-    to: email,
-    subject: 'Código de verificación VP Project',
-    text: `Tu código de verificación es: ${code}`,
-    html: `<p>Tu código de verificación es: <strong>${code}</strong></p><p>Este código expira en 15 minutos.</p>`,
-  };
-
-  const info = await transporter.sendMail(mailOptions);
-  if (nodemailer.getTestMessageUrl(info)) {
-    console.log('Verification email preview URL:', nodemailer.getTestMessageUrl(info));
-  }
-}
-
-// root route
-app.get('/', (req, res) => {
+app.get('/health', async (req, res) => {
   try {
-    res.status(200).json({
-      message: 'VP Project API',
-      version: '1.0.0',
-      status: 'running',
-      endpoints: {
-        test: '/test',
-        users: '/users',
-        signup: 'POST /signup',
-        login: 'POST /login',
-        verify: 'POST /verify'
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ 
+      status: 'OK', 
+      database: 'Oracle connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'ERROR', 
+      error: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// AUTHENTICATION - REGISTER (CONDUCTOR/PASAJERO)
+// ============================================================================
+
+app.post('/register', async (req, res) => {
+  const { 
+    documento, 
+    nombres, 
+    primerApellido,
+    segundoApellido,
+    email, 
+    telefono, 
+    fechaNacimiento,
+    contrasena,
+    fotoUrl,
+    perfil // 'PASAJERO' o 'CONDUCTOR'
+  } = req.body;
+
+  try {
+    // Validaciones básicas
+    if (!documento || !nombres || !email || !telefono || !contrasena) {
+      return res.status(400).json({ error: 'Campos requeridos faltantes' });
+    }
+
+    // Verificar si usuario ya existe
+    const usuarioExistente = await prisma.usuario.findUnique({
+      where: { documentoUsu: documento }
+    });
+
+    if (usuarioExistente) {
+      return res.status(400).json({ error: 'Usuario ya existe' });
+    }
+
+    // Obtener perfil
+    const perfilDb = await prisma.perfil.findUnique({
+      where: { nombre: perfil || 'PASAJERO' }
+    });
+
+    if (!perfilDb) {
+      return res.status(400).json({ error: 'Perfil inválido' });
+    }
+
+    // Crear usuario
+    const nuevoUsuario = await prisma.usuario.create({
+      data: {
+        documentoUsu: documento,
+        nombresUsu: nombres,
+        primerApellidoUsu: primerApellido,
+        segundoApellidoUsu: segundoApellido || null,
+        correoUsu: email,
+        numeroTelefonoUsu: telefono,
+        fechaNacimientoUsu: new Date(fechaNacimiento),
+        contrasenaUsu: hashPassword(contrasena),
+        fotoUrlUsu: fotoUrl || 'https://via.placeholder.com/150',
+      }
+    });
+
+    // Asignar perfil
+    await prisma.usuarioPerfil.create({
+      data: {
+        documentoUsuUsp: documento,
+        idPerUsp: perfilDb.id
+      }
+    });
+
+    // Generar código de verificación
+    const codigo = generateVerificationCode();
+    const expiracion = new Date(Date.now() + 15 * 60000); // 15 minutos
+
+    await prisma.verificacionCorreo.create({
+      data: {
+        documentoUsuVer: documento,
+        codigoVer: codigo,
+        fechaExpiracionVer: expiracion
+      }
+    });
+
+    // Enviar email (comentado por ahora - configurar credenciales)
+    console.log(`Código de verificación para ${email}: ${codigo}`);
+
+    res.status(201).json({ 
+      message: 'Usuario registrado. Verifica tu email.',
+      usuario: {
+        documento: nuevoUsuario.documentoUsu,
+        email: nuevoUsuario.correoUsu
       }
     });
   } catch (error) {
-    res.status(500).json({error: 'Internal Server Error'});
+    console.error('Error en register:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-//test api
-app.get('/test', (req, res) => {
-  try {
-    res.status(200).json({message: 'API is working!'});
-  } catch (error) {
-    res.status(500).json({error: 'Internal Server Error'});
-  }
-});
-
-// get all users
-app.get('/users', async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isVerified: true,
-        createdAt: true,
-      },
-    });
-    res.status(200).json(users);
-  } catch (error) {
-    res.status(500).json({message: 'Internal Server Error'});
-  }
-});
-
-// get user by id
-app.get('/users/:id', async (req, res) => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: {id: Number(req.params.id)},
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isVerified: true,
-        createdAt: true,
-      },
-    });
-    res.status(200).json(user);
-  } catch (error) {
-    res.status(500).json({message: 'Internal Server Error'});
-  }
-});
-
-app.post('/register', async (req, res) => {
-  try {
-    const {name, lastname, email, password, role, document, birthDate} = req.body;
-
-    // Validaciones básicas
-    if (!name?.trim() || !lastname?.trim() || !email?.trim() || !password?.trim() || !role) {
-      return res.status(400).json({message: 'Todos los campos son obligatorios.'});
-    }
-
-    // Validar documento
-    if (!document?.trim()) {
-      return res.status(400).json({message: 'El documento es obligatorio.'});
-    }
-
-    // Validar email de dominio
-    if (!email.endsWith('@elpoli.edu.co')) {
-      return res.status(400).json({message: 'El email debe ser del dominio @elpoli.edu.co.'});
-    }
-
-    // Validar longitud de contraseña
-    if (password.length < 8) {
-      return res.status(400).json({message: 'La contraseña debe tener al menos 8 caracteres.'});
-    }
-
-    // Validar rol
-    const normalizedRole = role.toUpperCase();
-    if (!['PASSENGER', 'DRIVER'].includes(normalizedRole)) {
-      return res.status(400).json({message: 'El tipo de usuario debe ser PASSENGER o DRIVER.'});
-    }
-
-    // Verificar email único
-    const existingEmail = await prisma.user.findUnique({where: {email}});
-    if (existingEmail) {
-      return res.status(409).json({message: 'Este email ya está registrado.'});
-    }
-
-    // Verificar documento único
-    const existingDocument = await prisma.user.findUnique({where: {document}});
-    if (existingDocument) {
-      return res.status(409).json({message: 'Este documento ya está registrado.'});
-    }
-
-    // Generar código de verificación
-    const verificationCode = generateVerificationCode();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-
-    // Crear usuario
-    const user = await prisma.user.create({
-      data: {
-        name,
-        lastname,
-        email,
-        password,
-        document,
-        role: normalizedRole,
-        birthDate: birthDate ? new Date(birthDate) : null,
-        isVerified: false,
-        verificationCode,
-        verificationExpiresAt: expiresAt,
-        statusId: 2, // ACTIVE por defecto (ID 2 en la tabla status)
-      },
-    });
-
-    // Enviar email de verificación
-    await sendVerificationEmail(email, verificationCode);
-
-    res.status(201).json({
-      id: user.id,
-      name: user.name,
-      lastname: user.lastname,
-      email: user.email,
-      role: user.role,
-      document: user.document,
-      message: 'Registro exitoso. Revisa tu correo para verificar tu cuenta.',
-    });
-  } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({message: 'Error interno al registrar el usuario: ' + error.message});
-  }
-});
+// ============================================================================
+// AUTHENTICATION - VERIFY EMAIL
+// ============================================================================
 
 app.post('/verify', async (req, res) => {
+  const { documento, codigo } = req.body;
+
   try {
-    const {email, code} = req.body;
-    if (!email || !code) {
-      return res.status(400).json({message: 'Email y código son requeridos.'});
+    if (!documento || !codigo) {
+      return res.status(400).json({ error: 'Documento y código requeridos' });
     }
 
-    const user = await prisma.user.findUnique({where: {email}});
-    if (!user) {
-      return res.status(404).json({message: 'Usuario no encontrado.'});
-    }
-
-    if (user.isVerified) {
-      return res.status(200).json({message: 'El correo ya está verificado.'});
-    }
-
-    if (!user.verificationCode || user.verificationCode !== String(code)) {
-      return res.status(400).json({message: 'Código de verificación incorrecto.'});
-    }
-
-    if (!user.verificationExpiresAt || new Date(user.verificationExpiresAt) < new Date()) {
-      return res.status(400).json({message: 'El código ha expirado. Solicita uno nuevo.'});
-    }
-
-    const updatedUser = await prisma.user.update({
-      where: {email},
-      data: {
-        isVerified: true,
-        verificationCode: null,
-        verificationExpiresAt: null,
-      },
+    const verificacion = await prisma.verificacionCorreo.findUnique({
+      where: { codigoVer: codigo }
     });
 
-    res.status(200).json({
-      id: updatedUser.id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      role: updatedUser.role,
-      message: 'Correo verificado correctamente.',
+    if (!verificacion || verificacion.documentoUsuVer !== documento) {
+      return res.status(400).json({ error: 'Código inválido' });
+    }
+
+    if (verificacion.usadoVer === 'S') {
+      return res.status(400).json({ error: 'Código ya utilizado' });
+    }
+
+    if (new Date() > verificacion.fechaExpiracionVer) {
+      return res.status(400).json({ error: 'Código expirado' });
+    }
+
+    // Marcar como usado
+    await prisma.verificacionCorreo.update({
+      where: { idVer: verificacion.idVer },
+      data: { usadoVer: 'S' }
     });
+
+    res.json({ message: 'Email verificado correctamente' });
   } catch (error) {
-    console.error('Verify error:', error);
-    res.status(500).json({message: 'Error interno al verificar el código.'});
+    console.error('Error en verify:', error);
+    res.status(500).json({ error: error.message });
   }
 });
+
+// ============================================================================
+// AUTHENTICATION - LOGIN
+// ============================================================================
 
 app.post('/login', async (req, res) => {
+  const { documento, contrasena } = req.body;
+
   try {
-    const {email, password} = req.body;
-    if (!email || !password) {
-      return res.status(400).json({message: 'Email y contraseña son necesarios.'});
+    if (!documento || !contrasena) {
+      return res.status(400).json({ error: 'Documento y contraseña requeridos' });
     }
 
-    const user = await prisma.user.findUnique({where: {email}});
-    if (!user) {
-      return res.status(404).json({message: 'Usuario no encontrado.'});
+    const usuario = await prisma.usuario.findUnique({
+      where: { documentoUsu: documento },
+      include: { 
+        perfiles: {
+          include: { perfil: true }
+        }
+      }
+    });
+
+    if (!usuario) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
-    if (!user.isVerified) {
-      return res.status(403).json({message: 'Debes verificar tu correo antes de iniciar sesión.'});
+    if (hashPassword(contrasena) !== usuario.contrasenaUsu) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
-    if (user.password !== password) {
-      return res.status(401).json({message: 'Email o contraseña incorrectos.'});
-    }
+    // Aquí iría la generación del JWT
+    // const token = jwt.sign({ documento }, process.env.JWT_SECRET, { expiresIn: '24h' });
 
-    res.status(200).json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      message: 'Inicio de sesión correcto.',
+    res.json({ 
+      message: 'Inicio de sesión exitoso',
+      usuario: {
+        documento: usuario.documentoUsu,
+        nombres: usuario.nombresUsu,
+        email: usuario.correoUsu,
+        telefono: usuario.numeroTelefonoUsu,
+        foto: usuario.fotoUrlUsu
+      }
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({message: 'Error interno al iniciar sesión.'});
+    console.error('Error en login:', error);
+    res.status(500).json({ error: error.message });
   }
 });
+
+// ============================================================================
+// VEHICLES
+// ============================================================================
 
 app.post('/vehicles', async (req, res) => {
+  const { 
+    documento,
+    placa, 
+    marca, 
+    modelo, 
+    anio,
+    color, 
+    licenciaUrl,
+    vehiculoUrl,
+    licTransitoUrl,
+    soatUrl
+  } = req.body;
+
   try {
-    const {driverId, brand, model, plate, color} = req.body;
+    // Obtener IDs de catálogos
+    const marcaObj = await prisma.marcaVehiculo.findUnique({ where: { nombre: marca } });
+    const modeloObj = await prisma.modeloVehiculo.findFirst({ where: { nombre: modelo, anio } });
+    const colorObj = await prisma.colorVehiculo.findUnique({ where: { nombre: color } });
 
-    if (!driverId || !brand?.trim() || !model?.trim() || !plate?.trim() || !color?.trim()) {
-      return res.status(400).json({message: 'Todos los campos de vehículo son obligatorios.'});
+    if (!marcaObj || !modeloObj || !colorObj) {
+      return res.status(400).json({ error: 'Marca, modelo o color inválido' });
     }
 
-    const driver = await prisma.user.findUnique({where: {id: Number(driverId)}});
-    if (!driver || driver.role !== 'DRIVER') {
-      return res.status(400).json({message: 'El conductor no existe o no tiene un rol de conductor.'});
-    }
-
-    const existingPlate = await prisma.vehicle.findUnique({where: {plate}});
-    if (existingPlate) {
-      return res.status(409).json({message: 'Ya existe un vehículo con esa placa.'});
-    }
-
-    const vehicle = await prisma.vehicle.create({
+    const nuevoVehiculo = await prisma.device.create({
       data: {
-        brand,
-        model,
-        plate,
-        color,
-        driverId: Number(driverId),
-      },
+        placaVeh: placa,
+        documentoUsuVeh: documento,
+        idMarVeh: marcaObj.id,
+        idModVeh: modeloObj.id,
+        idColVeh: colorObj.id,
+        idEstVeh: 1, // ACTIVO
+        licenciaUrlVeh: licenciaUrl,
+        vehiculoUrlVeh: vehiculoUrl,
+        licTransitoUrlVeh: licTransitoUrl,
+        soatUrlVeh: soatUrl
+      }
     });
 
-    res.status(201).json(vehicle);
+    res.status(201).json({ 
+      message: 'Vehículo registrado',
+      vehiculo: nuevoVehiculo 
+    });
   } catch (error) {
-    console.error('Vehicle error:', error);
-    res.status(500).json({message: 'Error interno al registrar el vehículo.'});
+    console.error('Error en vehicles:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
-// start server
+app.get('/vehicles/:documento', async (req, res) => {
+  try {
+    const vehiculos = await prisma.device.findMany({
+      where: { documentoUsuVeh: req.params.documento },
+      include: {
+        marca: true,
+        modelo: true,
+        color: true,
+        estado: true
+      }
+    });
+
+    res.json(vehiculos);
+  } catch (error) {
+    console.error('Error al obtener vehículos:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// ROUTES
+// ============================================================================
+
+app.post('/routes', async (req, res) => {
+  const { 
+    documento,
+    placaVehiculo,
+    latitudOrigen,
+    longitudOrigen,
+    latitudDestino,
+    longitudDestino,
+    horaSalida,
+    cuposTotales,
+    precioCupo,
+    distanciaKm
+  } = req.body;
+
+  try {
+    // Obtener USUARIO_PERFIL del conductor
+    const usuarioPerfil = await prisma.usuarioPerfil.findFirst({
+      where: {
+        documentoUsuUsp: documento,
+        perfil: { nombre: 'CONDUCTOR' }
+      }
+    });
+
+    if (!usuarioPerfil) {
+      return res.status(400).json({ error: 'Usuario no es conductor' });
+    }
+
+    // Obtener vehículo
+    const vehiculo = await prisma.device.findUnique({
+      where: { placaVeh: placaVehiculo }
+    });
+
+    if (!vehiculo) {
+      return res.status(400).json({ error: 'Vehículo no encontrado' });
+    }
+
+    const nuevaRuta = await prisma.ruta.create({
+      data: {
+        placaVehRut: vehiculo.idVeh,
+        idUspRut: usuarioPerfil.idUsp,
+        latitudOrigenRut: BigInt(latitudOrigen),
+        longitudOrigenRut: BigInt(longitudOrigen),
+        latitudDestinoRut: BigInt(latitudDestino),
+        longitudDestinoRut: BigInt(longitudDestino),
+        horaSalidaRut: new Date(horaSalida),
+        cuposTotalesRut: cuposTotales,
+        cuposDisponiblesRut: cuposTotales,
+        precioCupoRut: BigInt(precioCupo * 100), // Convertir a centavos
+        distanciaKmRut: BigInt(distanciaKm * 1000), // Convertir a metros
+        idEstRut: 1 // PROGRAMADA
+      }
+    });
+
+    res.status(201).json({ 
+      message: 'Ruta creada',
+      ruta: nuevaRuta 
+    });
+  } catch (error) {
+    console.error('Error en routes:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/routes', async (req, res) => {
+  try {
+    const rutas = await prisma.ruta.findMany({
+      where: {
+        estado: { nombre: 'PROGRAMADA' }
+      },
+      include: {
+        vehiculo: {
+          include: {
+            marca: true,
+            modelo: true,
+            color: true
+          }
+        },
+        conductor: {
+          include: {
+            usuario: true,
+            perfil: true
+          }
+        },
+        estado: true
+      },
+      orderBy: { horaSalidaRut: 'asc' }
+    });
+
+    res.json(rutas);
+  } catch (error) {
+    console.error('Error al obtener rutas:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// USERS
+// ============================================================================
+
+app.get('/users/:documento', async (req, res) => {
+  try {
+    const usuario = await prisma.usuario.findUnique({
+      where: { documentoUsu: req.params.documento },
+      include: {
+        perfiles: {
+          include: { perfil: true }
+        },
+        vehiculos: true
+      }
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.json(usuario);
+  } catch (error) {
+    console.error('Error al obtener usuario:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// ERROR HANDLING
+// ============================================================================
+
+app.use((err, req, res, next) => {
+  console.error('Error no manejado:', err);
+  res.status(500).json({ 
+    error: 'Error interno del servidor',
+    message: err.message 
+  });
+});
+
+// ============================================================================
+// START SERVER
+// ============================================================================
+
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+
+const main = async () => {
+  try {
+    // Verificar conexión a la BD
+    await prisma.$queryRaw`SELECT 1`;
+    console.log('✅ Conectado a Oracle');
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Servidor ejecutándose en http://localhost:${PORT}`);
+      console.log(`📊 BD: Oracle`);
+      console.log(`📁 Health Check: GET http://localhost:${PORT}/health`);
+    });
+  } catch (error) {
+    console.error('❌ Error conectando a BD:', error.message);
+    process.exit(1);
+  }
+};
+
+main();
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('\n⛔ Apagando servidor...');
+  await prisma.$disconnect();
+  process.exit(0);
+});

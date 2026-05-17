@@ -1,0 +1,33 @@
+erDiagram
+    ESTADO_USUARIO ||--o{ USUARIO : "tiene"
+    PERFIL ||--o{ USUARIO_PERFIL : "asignado"
+    USUARIO ||--o{ USUARIO_PERFIL : "tiene"
+    USUARIO ||--o{ VERIFICACION_CORREO : "verifica"
+    USUARIO ||--o{ VEHICULO : "propietario"
+    USUARIO ||--o{ TRANSACCIONES_CARTERA : "movimientos"
+    USUARIO ||--o{ HISTORIAL_VIAJE : "participa"
+    USUARIO ||--o{ CALIFICACION : "califica"
+    
+    MARCA_VEHICULO ||--o{ VEHICULO : "modelo"
+    MODELO_VEHICULO ||--o{ VEHICULO : "especificacion"
+    COLOR_VEHICULO ||--o{ VEHICULO : "aspecto"
+    ESTADO_VEHICULO ||--o{ VEHICULO : "estatus"
+    
+    VEHICULO ||--o{ RUTA : "utiliza"
+    USUARIO_PERFIL ||--o{ RUTA : "conductor"
+    ESTADO_RUTA ||--o{ RUTA : "situacion"
+    RUTA ||--o{ PUNTO_ENCUENTRO : "multiples"
+    
+    RUTA ||--o{ SOLICITUD_CUPO : "recibe"
+    USUARIO_PERFIL ||--o{ SOLICITUD_CUPO : "pasajero"
+    ESTADO_SOLICITUD ||--o{ SOLICITUD_CUPO : "estado"
+    METODO_PAGO ||--o{ SOLICITUD_CUPO : "pago"
+    
+    SOLICITUD_CUPO ||--o{ CUPO_RUTA : "genera"
+    RUTA ||--o{ CUPO_RUTA : "asigna"
+    ESTADO_CUR ||--o{ CUPO_RUTA : "estado"
+    
+    TIPO_TRANSACCION ||--o{ TRANSACCIONES_CARTERA : "tipo"
+    
+    HISTORIAL_VIAJE ||--o{ CALIFICACION : "referencia"
+    CUPO_RUTA ||--o{ HISTORIAL_VIAJE : "viaje"
