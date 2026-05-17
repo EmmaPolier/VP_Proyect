@@ -35,6 +35,7 @@ export function SignupForm({
     lastname: "",
     document: "",
     email: "",
+    phone: "",
     password: "",
     confirmPassword: "",
     birthDate: "",
@@ -99,6 +100,12 @@ export function SignupForm({
         return
       }
 
+      if (!formData.phone.trim()) {
+        setError("El teléfono es requerido")
+        setIsLoading(false)
+        return
+      }
+
       if (formData.password.length < 8) {
         setError("La contraseña debe tener mínimo 8 caracteres")
         setIsLoading(false)
@@ -112,23 +119,25 @@ export function SignupForm({
       }
 
       const response = await axios.post(`${API_URL}/register`, {
-        name: formData.name,
-        lastname: formData.lastname,
-        document: formData.document,
+        documento: formData.document,
+        nombres: formData.name,
+        primerApellido: formData.lastname,
+        segundoApellido: "",
         email: formData.email,
-        password: formData.password,
-        birthDate: formData.birthDate || null,
-        role: formData.role,
+        telefono: formData.phone || "",
+        fechaNacimiento: formData.birthDate || null,
+        contrasena: formData.password,
+        fotoUrl: null,
+        perfil: formData.role === "DRIVER" ? "CONDUCTOR" : "PASAJERO",
       })
 
       if (response.status === 201) {
         localStorage.setItem(
           "pendingVerification",
           JSON.stringify({
-            id: response.data.id,
-            email: response.data.email,
-            name: response.data.name,
-            type: response.data.role === "DRIVER" ? "driver" : "passenger",
+            id: response.data.usuario.documento,
+            email: response.data.usuario.email,
+            type: formData.role === "DRIVER" ? "driver" : "passenger",
           })
         )
 
@@ -220,6 +229,17 @@ export function SignupForm({
                   onChange={handleInputChange}
                   disabled={isLoading}
                   required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="phone">Teléfono</FieldLabel>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="3001234567"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  disabled={isLoading}
                 />
               </Field>
               <Field>

@@ -9,28 +9,59 @@ Frontend (Next.js)  →  Backend (Express.js)  →  SQLite/Oracle
      :3000              :4000                   (Desarrollo/Producción)
 ```
 
-## 🚀 Quick Start - 3 Pasos (5 minutos)
+## 🚀 Instrucciones de Inicio
 
-### 1️⃣ Instalar dependencias
+### Requisitos Previos
+- Node.js 18+
+- Oracle XE (o ejecutar el script de setup)
+- PowerShell
+
+### Paso 1: Configurar Oracle Database
 ```powershell
-.\install-dependencies.ps1
+# Ejecutar en la raíz del proyecto
+.\setup-oracle-database.ps1
 ```
+Este script levantará Oracle XE y ejecutará los scripts SQL.
 
-### 2️⃣ Inicializar base de datos
+### Paso 2: Instalar dependencias
 ```powershell
+# Backend
 cd backend
-npx prisma migrate dev --name init
-cd ..
+npm install
+
+# Frontend
+cd ../frontend
+npm install
 ```
 
-### 3️⃣ Iniciar aplicación
+### Paso 3: Ejecutar los scripts SQL (si no se ejecutaron en Paso 1)
 ```powershell
-.\start-dev.ps1
+# En PowerShell, conectarse a SQL*Plus y ejecutar:
+sqlplus system/Emma2006@orcl
+SQL> @scripts/1script_DDL_tablas_VamonosPues.sql
+SQL> @scripts/2script_constraint_VamonosPues.sql
+SQL> @scripts/3script_Indices_VamonosPues.sql
+SQL> @scripts/4scripts_DML_VamonosPues.sql
+SQL> @scripts/5script_Menu_VamonosPues.sql
+SQL> COMMIT;
+SQL> EXIT;
+```
+
+### Paso 4: Levantar la aplicación
+```powershell
+# Terminal 1 - Backend (puerto 4000)
+cd backend
+npm run dev
+
+# Terminal 2 - Frontend (puerto 3000)
+cd frontend
+npm run dev
 ```
 
 ✅ **¡Listo!** Accede a:
 - Frontend: http://localhost:3000
 - Backend:  http://localhost:4000
+- Oracle XE: Credenciales por defecto (system/Emma2006)
 
 ---
 

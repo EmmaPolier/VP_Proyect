@@ -8,7 +8,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [userType, setUserType] = useState<"passenger" | "driver">("passenger")
+  const [userType, setUserType] = useState<"passenger" | "driver" | "admin">("passenger")
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -22,7 +22,9 @@ export default function DashboardPage() {
 
     try {
       const user = JSON.parse(currentUser)
-      setUserType(user.type || "passenger")
+      // Mapear id_perfil a userType: 1=passenger, 2=driver, 3=admin
+      const type = user.type || (user.id_perfil === 2 ? "driver" : user.id_perfil === 3 ? "admin" : "passenger")
+      setUserType(type as "passenger" | "driver" | "admin")
     } catch (error) {
       console.error("Error parsing user data:", error)
       router.push("/login")

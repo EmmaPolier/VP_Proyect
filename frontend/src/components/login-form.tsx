@@ -40,7 +40,7 @@ export function LoginForm({
     try {
       const response = await axios.post(`${API_URL}/login`, {
         email,
-        password,
+        contrasena: password,
       })
 
       localStorage.setItem(
@@ -48,8 +48,10 @@ export function LoginForm({
         JSON.stringify({
           id: response.data.id,
           email: response.data.email,
-          name: response.data.name,
-          type: response.data.role === "DRIVER" ? "driver" : "passenger",
+          nombres: response.data.nombres,
+          documento: response.data.documento,
+          id_perfil: response.data.id_perfil,
+          type: response.data.id_perfil === 2 ? "driver" : response.data.id_perfil === 3 ? "admin" : "passenger",
         })
       )
 

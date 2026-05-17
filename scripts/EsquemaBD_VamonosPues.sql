@@ -4,7 +4,7 @@ prompt ===============================================
 prompt |   Esquema de la Base de Datos de VamonosPues |
 prompt ===============================================
 
-connect system/123456789
+connect system/Emma2006
 
 show con_name
 
@@ -14,7 +14,7 @@ ALTER DATABASE OPEN;
 DROP TABLESPACE ts_vamonospues INCLUDING CONTENTS and DATAFILES;
 
 CREATE TABLESPACE ts_vamonospues LOGGING
-DATAFILE 'D:\Base_de_Datos_1\DB_PPI3\Datos_VamonosPues\DF_VamonosPues.dbf' size 1000M 
+DATAFILE 'C:\dev\VP_Proyect\Scripts\DF_VamonosPues.dbf' size 1000M
 extent management local segment space management auto;
 
 alter session set "_ORACLE_SCRIPT"=true; 

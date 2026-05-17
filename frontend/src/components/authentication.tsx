@@ -75,8 +75,8 @@ export function InputOTPForm() {
         JSON.stringify({
           id: response.data.id,
           email: response.data.email,
-          name: response.data.name,
-          type: response.data.role === "DRIVER" ? "driver" : "passenger",
+          id_perfil: response.data.role === "CONDUCTOR" ? 2 : response.data.role === "ADMIN" ? 3 : 1,
+          type: response.data.role === "CONDUCTOR" ? "driver" : response.data.role === "ADMIN" ? "admin" : "passenger",
         })
       )
       localStorage.removeItem("pendingVerification")

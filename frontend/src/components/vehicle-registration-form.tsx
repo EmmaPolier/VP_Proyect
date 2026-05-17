@@ -20,7 +20,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Plus } from "lucide-react"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
 
@@ -34,7 +33,11 @@ export function VehicleRegistrationForm({
     brand: "",
     model: "",
     plate: "",
-    color: ""
+    color: "",
+    soatUrl: "",
+    licenciaUrl: "",
+    tarjetaUrl: "",
+    fotoUrl: ""
   })
   const [driverId, setDriverId] = useState<number | null>(null)
   const router = useRouter()
@@ -73,7 +76,7 @@ export function VehicleRegistrationForm({
     setIsLoading(true)
 
     if (!driverId) {
-      setError("No hay conductor válido para registrar el vehículo.")
+      setError(`No hay conductor válido para registrar el vehículo. (driverId: ${driverId})`)
       setIsLoading(false)
       return
     }
@@ -85,18 +88,36 @@ export function VehicleRegistrationForm({
         return
       }
 
+      console.log("Enviando vehículo:", {
+        driverId,
+        brand: formData.brand,
+        model: formData.model,
+        plate: formData.plate,
+        color: formData.color,
+        soatUrl: formData.soatUrl,
+        licenciaUrl: formData.licenciaUrl,
+        tarjetaUrl: formData.tarjetaUrl,
+        fotoUrl: formData.fotoUrl,
+      })
+
       await axios.post(`${API_URL}/vehicles`, {
         driverId,
         brand: formData.brand,
         model: formData.model,
         plate: formData.plate,
         color: formData.color,
+        soatUrl: formData.soatUrl,
+        licenciaUrl: formData.licenciaUrl,
+        tarjetaUrl: formData.tarjetaUrl,
+        fotoUrl: formData.fotoUrl,
       })
 
       router.push("/auth")
     } catch (err: any) {
       console.error("Error en registro:", err)
-      if (err.response?.data?.message) {
+      if (err.response?.data?.error) {
+        setError(err.response.data.error)
+      } else if (err.response?.data?.message) {
         setError(err.response.data.message)
       } else {
         setError("Error al registrar el vehículo. Intenta nuevamente.")
@@ -174,19 +195,52 @@ export function VehicleRegistrationForm({
                 </Field>
               </Field>
               <Field>
-                <FieldLabel>Fotos del vehículo</FieldLabel>
-                <div className="grid grid-cols-2 gap-4">
-                  {[1, 2, 3, 4].map((i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg bg-muted hover:bg-muted/50 transition-colors"
-                    >
-                      <Plus className="w-6 h-6 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">Foto Vehículo</span>
-                    </button>
-                  ))}
-                </div>
+                <FieldLabel>Documentos del vehículo</FieldLabel>
+                <Field>
+                  <FieldLabel htmlFor="soatUrl" className="text-sm">SOAT</FieldLabel>
+                  <Input
+                    id="soatUrl"
+                    type="url"
+                    placeholder="https://..."
+                    value={formData.soatUrl}
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="licenciaUrl" className="text-sm">Licencia de conducción</FieldLabel>
+                  <Input
+                    id="licenciaUrl"
+                    type="url"
+                    placeholder="https://..."
+                    value={formData.licenciaUrl}
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="tarjetaUrl" className="text-sm">Tarjeta de propiedad</FieldLabel>
+                  <Input
+                    id="tarjetaUrl"
+                    type="url"
+                    placeholder="https://..."
+                    value={formData.tarjetaUrl}
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                  />
+                </Field>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="fotoUrl">Foto del vehículo</FieldLabel>
+                <Input
+                  id="fotoUrl"
+                  type="url"
+                  placeholder="https://..."
+                  value={formData.fotoUrl}
+                  onChange={handleInputChange}
+                  disabled={isLoading}
+                />
               </Field>
 
               <Field>

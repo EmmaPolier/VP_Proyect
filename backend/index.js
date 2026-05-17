@@ -1,14 +1,14 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import { initializePool, getConnection, closePool } from './db.js';
 
 dotenv.config();
 
 const app = express();
-const prisma = new PrismaClient();
+const port = process.env.PORT || 4000;
 
 // Middleware
 app.use(cors());
@@ -36,18 +36,121 @@ const transporter = nodemailer.createTransport({
 });
 
 // ============================================================================
+// PERMISSION VALIDATION UTILITIES
+// ============================================================================
+
+/**
+ * Validar si un usuario tiene permiso para una acción en una URL específica
+ * @param {number} idPerfil - ID del perfil del usuario
+ * @param {string} url - URL/menú a validar
+ * @param {string} action - Acción a validar: 'CREATE', 'READ', 'UPDATE', 'DELETE'
+ * @returns {Promise<boolean>} - true si tiene permiso, false en caso contrario
+ */
+const validatePermission = async (idPerfil, url, action) => {
+  try {
+    const connection = await getConnection();
+    
+    // Buscar el menú por URL
+    const menuResult = await connection.execute(
+      `SELECT ID_MEN FROM MENU WHERE URL_MEN = :url`,
+      { url }
+    );
+
+    if (!menuResult.rows || menuResult.rows.length === 0) {
+      await connection.close();
+      return false; // URL no existe en el menú
+    }
+
+    const [idMenu] = menuResult.rows[0];
+
+    // Validar permiso en MENU_PERFIL
+    const upperAction = action.toUpperCase();
+    const permissionColumn = 
+      upperAction === 'CREATE' ? 'INSERT_MPE' :
+      upperAction === 'READ' ? 'SELECT_MPE' :
+      upperAction === 'UPDATE' ? 'UPDATE_MPE' :
+      upperAction === 'DELETE' ? 'DELETE_MPE' : null;
+
+    if (!permissionColumn) {
+      await connection.close();
+      return false;
+    }
+
+    const permResult = await connection.execute(
+      `SELECT ${permissionColumn} FROM MENU_PERFIL 
+       WHERE ID_MENU_MPE = :idMenu AND ID_PERFIL_MPE = :idPerfil`,
+      { idMenu, idPerfil }
+    );
+
+    await connection.close();
+
+    if (!permResult.rows || permResult.rows.length === 0) {
+      return false;
+    }
+
+    const [hasPermission] = permResult.rows[0];
+    return hasPermission === 'S';
+  } catch (error) {
+    console.error('Error validating permission:', error);
+    return false;
+  }
+};
+
+/**
+ * Middleware para validar permisos
+ * Espera que req.body.idPerfil y req.body.url estén presentes
+ */
+const permissionMiddleware = (requiredAction) => {
+  return async (req, res, next) => {
+    try {
+      const { idPerfil, url } = req.body;
+
+      if (!idPerfil || !url) {
+        return res.status(400).json({ 
+          error: 'idPerfil y url son requeridos para validar permisos' 
+        });
+      }
+
+      const hasPermission = await validatePermission(
+        idPerfil,
+        url,
+        requiredAction
+      );
+
+      if (!hasPermission) {
+        return res.status(403).json({
+          error: `Permiso denegado: no tienes permisos para ${requiredAction.toLowerCase()}`
+        });
+      }
+
+      next();
+    } catch (error) {
+      console.error('Error en permission middleware:', error);
+      res.status(500).json({ error: error.message });
+    }
+  };
+};
+
+// ============================================================================
 // HEALTH CHECK
 // ============================================================================
 
 app.get('/health', async (req, res) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    const connection = await getConnection();
+    
+    // Test query to verify database connection
+    const result = await connection.execute('SELECT 1 FROM DUAL');
+    
+    await connection.close();
+    
     res.json({ 
       status: 'OK', 
-      database: 'Oracle connected',
+      database: 'Oracle XE connected',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('Health check error:', error);
     res.status(500).json({ 
       status: 'ERROR', 
       error: error.message 
@@ -73,408 +176,549 @@ app.post('/register', async (req, res) => {
     perfil // 'PASAJERO' o 'CONDUCTOR'
   } = req.body;
 
+  let connection;
   try {
     // Validaciones básicas
     if (!documento || !nombres || !email || !telefono || !contrasena) {
       return res.status(400).json({ error: 'Campos requeridos faltantes' });
     }
 
-    // Verificar si usuario ya existe
-    const usuarioExistente = await prisma.usuario.findUnique({
-      where: { documentoUsu: documento }
-    });
+    connection = await getConnection();
 
-    if (usuarioExistente) {
+    // Verificar si usuario ya existe
+    const checkUser = await connection.execute(
+      `SELECT DOCUMENTO_USU FROM USUARIO WHERE DOCUMENTO_USU = :documento`,
+      { documento }
+    );
+
+    if (checkUser.rows && checkUser.rows.length > 0) {
       return res.status(400).json({ error: 'Usuario ya existe' });
     }
 
-    // Obtener perfil
-    const perfilDb = await prisma.perfil.findUnique({
-      where: { nombre: perfil || 'PASAJERO' }
-    });
-
-    if (!perfilDb) {
-      return res.status(400).json({ error: 'Perfil inválido' });
-    }
+    // Obtener estado usuario (ACTIVO = 1)
+    const estadoResult = await connection.execute(
+      `SELECT ID_EUS FROM ESTADO_USUARIO WHERE NOMBRE_EUS = 'ACTIVO'`
+    );
+    
+    const idEstado = estadoResult.rows ? estadoResult.rows[0][0] : 1;
 
     // Crear usuario
-    const nuevoUsuario = await prisma.usuario.create({
-      data: {
-        documentoUsu: documento,
-        nombresUsu: nombres,
-        primerApellidoUsu: primerApellido,
-        segundoApellidoUsu: segundoApellido || null,
-        correoUsu: email,
-        numeroTelefonoUsu: telefono,
-        fechaNacimientoUsu: new Date(fechaNacimiento),
-        contrasenaUsu: hashPassword(contrasena),
-        fotoUrlUsu: fotoUrl || 'https://via.placeholder.com/150',
+    const hashedPassword = hashPassword(contrasena);
+    
+    await connection.execute(
+      `INSERT INTO USUARIO 
+       (DOCUMENTO_USU, NOMBRES_USU, PRIMER_APELLIDO_USU, SEGUNDO_APELLIDO_USU, 
+        CORREO_USU, NUMERO_TELEFONO_USU, FECHA_NACIMIENTO_USU, 
+        CONTRASENA_USU, FOTO_URL_USU, SALDO_CARTERA_USU, FECHA_CREACION_USU, ID_EST_USU)
+       VALUES 
+       (:documento, :nombres, :primerApellido, :segundoApellido,
+        :email, :telefono, TO_DATE(:fechaNacimiento, 'YYYY-MM-DD'),
+        :contrasena, :fotoUrl, 0, SYSDATE, :idEstado)`,
+      {
+        documento,
+        nombres,
+        primerApellido,
+        segundoApellido: segundoApellido || null,
+        email,
+        telefono,
+        fechaNacimiento,
+        contrasena: hashedPassword,
+        fotoUrl: fotoUrl || 'https://via.placeholder.com/150',
+        idEstado
       }
-    });
+    );
 
-    // Asignar perfil
-    await prisma.usuarioPerfil.create({
-      data: {
-        documentoUsuUsp: documento,
-        idPerUsp: perfilDb.id
+    // Obtener perfil
+    const perfilResult = await connection.execute(
+      `SELECT ID_PER FROM PERFIL WHERE NOMBRE_PER = :perfil`,
+      { perfil: perfil || 'PASAJERO' }
+    );
+
+    const idPerfil = perfilResult.rows ? perfilResult.rows[0][0] : 1;
+
+    // Asignar perfil al usuario
+    await connection.execute(
+      `INSERT INTO USUARIO_PERFIL 
+       (ID_UPE, DOCUMENTO_USU_UPE, ID_PER_UPE, CALIFICACION_UPE, FECHA_ASIGNACION_UPE)
+       VALUES 
+       (SEQ_USUARIO_PERFIL.NEXTVAL, :documento, :idPerfil, 5.0, SYSDATE)`,
+      {
+        documento,
+        idPerfil
       }
-    });
+    );
 
     // Generar código de verificación
     const codigo = generateVerificationCode();
     const expiracion = new Date(Date.now() + 15 * 60000); // 15 minutos
 
-    await prisma.verificacionCorreo.create({
-      data: {
-        documentoUsuVer: documento,
-        codigoVer: codigo,
-        fechaExpiracionVer: expiracion
+    await connection.execute(
+      `INSERT INTO VERIFICACION_CORREO 
+       (ID_VER, DOCUMENTO_USU_VER, CODIGO_VER, FECHA_EXPIRACION_VER, USADO_VER, FECHA_CREACION_VER)
+       VALUES 
+       (SEQ_VERIFICACION_CORREO.NEXTVAL, :documento, :codigo, TO_DATE(:expiracion, 'YYYY-MM-DD HH24:MI:SS'), 'N', SYSDATE)`,
+      {
+        documento,
+        codigo,
+        expiracion: expiracion.toISOString().split('T').join(' ').substring(0, 19)
       }
-    });
+    );
 
-    // Enviar email (comentado por ahora - configurar credenciales)
+    // Enviar email (comentado por ahora)
     console.log(`Código de verificación para ${email}: ${codigo}`);
+
+    // Confirmar la transacción
+    await connection.commit();
 
     res.status(201).json({ 
       message: 'Usuario registrado. Verifica tu email.',
       usuario: {
-        documento: nuevoUsuario.documentoUsu,
-        email: nuevoUsuario.correoUsu
+        documento,
+        email
       }
     });
+
   } catch (error) {
     console.error('Error en register:', error);
     res.status(500).json({ error: error.message });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Error cerrando conexión:', err);
+      }
+    }
   }
 });
 
 // ============================================================================
-// AUTHENTICATION - VERIFY EMAIL
-// ============================================================================
-
-app.post('/verify', async (req, res) => {
-  const { documento, codigo } = req.body;
-
-  try {
-    if (!documento || !codigo) {
-      return res.status(400).json({ error: 'Documento y código requeridos' });
-    }
-
-    const verificacion = await prisma.verificacionCorreo.findUnique({
-      where: { codigoVer: codigo }
-    });
-
-    if (!verificacion || verificacion.documentoUsuVer !== documento) {
-      return res.status(400).json({ error: 'Código inválido' });
-    }
-
-    if (verificacion.usadoVer === 'S') {
-      return res.status(400).json({ error: 'Código ya utilizado' });
-    }
-
-    if (new Date() > verificacion.fechaExpiracionVer) {
-      return res.status(400).json({ error: 'Código expirado' });
-    }
-
-    // Marcar como usado
-    await prisma.verificacionCorreo.update({
-      where: { idVer: verificacion.idVer },
-      data: { usadoVer: 'S' }
-    });
-
-    res.json({ message: 'Email verificado correctamente' });
-  } catch (error) {
-    console.error('Error en verify:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ============================================================================
-// AUTHENTICATION - LOGIN
+// LOGIN
 // ============================================================================
 
 app.post('/login', async (req, res) => {
-  const { documento, contrasena } = req.body;
+  const { email, contrasena } = req.body;
 
+  let connection;
   try {
-    if (!documento || !contrasena) {
-      return res.status(400).json({ error: 'Documento y contraseña requeridos' });
+    if (!email || !contrasena) {
+      return res.status(400).json({ error: 'Email y contraseña requeridos' });
     }
 
-    const usuario = await prisma.usuario.findUnique({
-      where: { documentoUsu: documento },
-      include: { 
-        perfiles: {
-          include: { perfil: true }
-        }
-      }
+    connection = await getConnection();
+
+    // Buscar usuario por email y obtener su perfil
+    const result = await connection.execute(
+      `SELECT u.DOCUMENTO_USU, u.NOMBRES_USU, u.CORREO_USU, u.CONTRASENA_USU, up.ID_PER_UPE
+       FROM USUARIO u
+       LEFT JOIN USUARIO_PERFIL up ON u.DOCUMENTO_USU = up.DOCUMENTO_USU_UPE
+       WHERE u.CORREO_USU = :email`,
+      { email }
+    );
+
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(401).json({ error: 'Usuario no encontrado' });
+    }
+
+    const [documento, nombres, correo, contrasenaGuardada, idPerfil] = result.rows[0];
+    const hashedPassword = hashPassword(contrasena);
+
+    if (hashedPassword !== contrasenaGuardada) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+
+    // Retornar datos del usuario con id_perfil
+    res.json({
+      id: documento,
+      nombres,
+      email: correo,
+      documento,
+      id_perfil: idPerfil || 1  // Default a 1 (PASAJERO) si no tiene perfil asignado
     });
 
-    if (!usuario) {
-      return res.status(401).json({ error: 'Credenciales inválidas' });
-    }
-
-    if (hashPassword(contrasena) !== usuario.contrasenaUsu) {
-      return res.status(401).json({ error: 'Credenciales inválidas' });
-    }
-
-    // Aquí iría la generación del JWT
-    // const token = jwt.sign({ documento }, process.env.JWT_SECRET, { expiresIn: '24h' });
-
-    res.json({ 
-      message: 'Inicio de sesión exitoso',
-      usuario: {
-        documento: usuario.documentoUsu,
-        nombres: usuario.nombresUsu,
-        email: usuario.correoUsu,
-        telefono: usuario.numeroTelefonoUsu,
-        foto: usuario.fotoUrlUsu
-      }
-    });
   } catch (error) {
     console.error('Error en login:', error);
     res.status(500).json({ error: error.message });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Error cerrando conexión:', err);
+      }
+    }
   }
 });
 
 // ============================================================================
-// VEHICLES
+// GET ALL USERS
+// ============================================================================
+
+app.get('/users', async (req, res) => {
+  let connection;
+  try {
+    connection = await getConnection();
+
+    const result = await connection.execute(
+      `SELECT DOCUMENTO_USU, NOMBRES_USU || ' ' || PRIMER_APELLIDO_USU as NOMBRE_COMPLETO, 
+              CORREO_USU, NUMERO_TELEFONO_USU, SALDO_CARTERA_USU
+       FROM USUARIO`,
+      []
+    );
+
+    const usuarios = result.rows ? result.rows.map(row => ({
+      documento: row[0],
+      nombreCompleto: row[1],
+      email: row[2],
+      telefono: row[3],
+      saldo: row[4]
+    })) : [];
+
+    res.json(usuarios);
+
+  } catch (error) {
+    console.error('Error en GET /users:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Error cerrando conexión:', err);
+      }
+    }
+  }
+});
+
+// ============================================================================
+// REGISTER VEHICLE
 // ============================================================================
 
 app.post('/vehicles', async (req, res) => {
-  const { 
-    documento,
-    placa, 
-    marca, 
-    modelo, 
-    anio,
-    color, 
+  const {
+    driverId,
+    brand,
+    model,
+    plate,
+    color,
+    soatUrl,
     licenciaUrl,
-    vehiculoUrl,
-    licTransitoUrl,
-    soatUrl
+    tarjetaUrl,
+    fotoUrl
   } = req.body;
 
+  let connection;
   try {
-    // Obtener IDs de catálogos
-    const marcaObj = await prisma.marcaVehiculo.findUnique({ where: { nombre: marca } });
-    const modeloObj = await prisma.modeloVehiculo.findFirst({ where: { nombre: modelo, anio } });
-    const colorObj = await prisma.colorVehiculo.findUnique({ where: { nombre: color } });
-
-    if (!marcaObj || !modeloObj || !colorObj) {
-      return res.status(400).json({ error: 'Marca, modelo o color inválido' });
+    if (!driverId || !plate || !brand || !model || !color) {
+      return res.status(400).json({ error: 'Campos requeridos faltantes' });
     }
 
-    const nuevoVehiculo = await prisma.device.create({
-      data: {
-        placaVeh: placa,
-        documentoUsuVeh: documento,
-        idMarVeh: marcaObj.id,
-        idModVeh: modeloObj.id,
-        idColVeh: colorObj.id,
-        idEstVeh: 1, // ACTIVO
-        licenciaUrlVeh: licenciaUrl,
-        vehiculoUrlVeh: vehiculoUrl,
-        licTransitoUrlVeh: licTransitoUrl,
-        soatUrlVeh: soatUrl
-      }
-    });
+    connection = await getConnection();
 
-    res.status(201).json({ 
-      message: 'Vehículo registrado',
-      vehiculo: nuevoVehiculo 
-    });
-  } catch (error) {
-    console.error('Error en vehicles:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+    // Verificar que el usuario existe y es conductor
+    const userResult = await connection.execute(
+      `SELECT u.DOCUMENTO_USU FROM USUARIO u
+       JOIN USUARIO_PERFIL up ON u.DOCUMENTO_USU = up.DOCUMENTO_USU_UPE
+       JOIN PERFIL p ON up.ID_PER_UPE = p.ID_PER
+       WHERE u.DOCUMENTO_USU = :documento AND p.NOMBRE_PER = 'CONDUCTOR'`,
+      { documento: driverId }
+    );
 
-app.get('/vehicles/:documento', async (req, res) => {
-  try {
-    const vehiculos = await prisma.device.findMany({
-      where: { documentoUsuVeh: req.params.documento },
-      include: {
-        marca: true,
-        modelo: true,
-        color: true,
-        estado: true
-      }
-    });
-
-    res.json(vehiculos);
-  } catch (error) {
-    console.error('Error al obtener vehículos:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ============================================================================
-// ROUTES
-// ============================================================================
-
-app.post('/routes', async (req, res) => {
-  const { 
-    documento,
-    placaVehiculo,
-    latitudOrigen,
-    longitudOrigen,
-    latitudDestino,
-    longitudDestino,
-    horaSalida,
-    cuposTotales,
-    precioCupo,
-    distanciaKm
-  } = req.body;
-
-  try {
-    // Obtener USUARIO_PERFIL del conductor
-    const usuarioPerfil = await prisma.usuarioPerfil.findFirst({
-      where: {
-        documentoUsuUsp: documento,
-        perfil: { nombre: 'CONDUCTOR' }
-      }
-    });
-
-    if (!usuarioPerfil) {
+    if (!userResult.rows || userResult.rows.length === 0) {
       return res.status(400).json({ error: 'Usuario no es conductor' });
     }
 
-    // Obtener vehículo
-    const vehiculo = await prisma.device.findUnique({
-      where: { placaVeh: placaVehiculo }
+    // Obtener IDs de marca, modelo, color (usando defaults si no existen)
+    const marcaResult = await connection.execute(
+      `SELECT ID_MAR FROM MARCA_VEHICULO WHERE NOMBRE_MAR = :brand`,
+      { brand: brand.toUpperCase() }
+    );
+    const marcaId = marcaResult.rows ? marcaResult.rows[0][0] : 1;
+
+    const modeloResult = await connection.execute(
+      `SELECT ID_MOD FROM MODELO_VEHICULO WHERE NOMBRE_MOD = :model`,
+      { model: model.toUpperCase() }
+    );
+    const modeloId = modeloResult.rows ? modeloResult.rows[0][0] : 1;
+
+    const colorResult = await connection.execute(
+      `SELECT ID_COL FROM COLOR_VEHICULO WHERE NOMBRE_COL = :color`,
+      { color: color.toUpperCase() }
+    );
+    const colorId = colorResult.rows ? colorResult.rows[0][0] : 1;
+
+    // Obtener estado ACTIVO para vehículos
+    const estadoResult = await connection.execute(
+      `SELECT ID_EVE FROM ESTADO_VEHICULO WHERE NOMBRE_EVE = 'ACTIVO'`
+    );
+    
+    const idEstado = estadoResult.rows ? estadoResult.rows[0][0] : 1;
+
+    // Crear vehículo
+    await connection.execute(
+      `INSERT INTO VEHICULO 
+       (ID_VEH, DOCUMENTO_USU_VEH, ID_MAR_VEH, ID_MOD_VEH, ID_COL_VEH, 
+        ID_EST_VEH, PLACA_VEH, SOAT_URL_VEH, LICENCIA_URL_VEH, 
+        TARJETA_URL_VEH, VEHICULO_URL_VEH, FECHA_REGISTRO_VEH)
+       VALUES 
+       (SEQ_VEHICULO.NEXTVAL, :documento, :marcaId, :modeloId, :colorId,
+        :idEstado, :placa, :soatUrl, :licenciaUrl, :tarjetaUrl, :vehiculoUrl, SYSDATE)`,
+      {
+        documento: driverId,
+        marcaId,
+        modeloId,
+        colorId,
+        idEstado,
+        placa: plate,
+        soatUrl: soatUrl || null,
+        licenciaUrl: licenciaUrl || null,
+        tarjetaUrl: tarjetaUrl || null,
+        vehiculoUrl: fotoUrl || null
+      }
+    );
+
+    await connection.commit();
+
+    res.status(201).json({
+      message: 'Vehículo registrado exitosamente',
+      placa: plate
     });
 
-    if (!vehiculo) {
-      return res.status(400).json({ error: 'Vehículo no encontrado' });
+  } catch (error) {
+    console.error('Error en POST /vehicles:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Error cerrando conexión:', err);
+      }
+    }
+  }
+});
+
+// ============================================================================
+// VERIFY EMAIL
+// ============================================================================
+
+app.post('/verify', async (req, res) => {
+  const { email, code } = req.body;
+
+  let connection;
+  try {
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email y código requeridos' });
     }
 
-    const nuevaRuta = await prisma.ruta.create({
-      data: {
-        placaVehRut: vehiculo.idVeh,
-        idUspRut: usuarioPerfil.idUsp,
-        latitudOrigenRut: BigInt(latitudOrigen),
-        longitudOrigenRut: BigInt(longitudOrigen),
-        latitudDestinoRut: BigInt(latitudDestino),
-        longitudDestinoRut: BigInt(longitudDestino),
-        horaSalidaRut: new Date(horaSalida),
-        cuposTotalesRut: cuposTotales,
-        cuposDisponiblesRut: cuposTotales,
-        precioCupoRut: BigInt(precioCupo * 100), // Convertir a centavos
-        distanciaKmRut: BigInt(distanciaKm * 1000), // Convertir a metros
-        idEstRut: 1 // PROGRAMADA
-      }
-    });
+    connection = await getConnection();
 
-    res.status(201).json({ 
-      message: 'Ruta creada',
-      ruta: nuevaRuta 
-    });
-  } catch (error) {
-    console.error('Error en routes:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+    // Obtener documento del usuario por email
+    const usuarioResult = await connection.execute(
+      `SELECT DOCUMENTO_USU FROM USUARIO WHERE CORREO_USU = :email`,
+      { email }
+    );
 
-app.get('/routes', async (req, res) => {
-  try {
-    const rutas = await prisma.ruta.findMany({
-      where: {
-        estado: { nombre: 'PROGRAMADA' }
-      },
-      include: {
-        vehiculo: {
-          include: {
-            marca: true,
-            modelo: true,
-            color: true
-          }
-        },
-        conductor: {
-          include: {
-            usuario: true,
-            perfil: true
-          }
-        },
-        estado: true
-      },
-      orderBy: { horaSalidaRut: 'asc' }
-    });
-
-    res.json(rutas);
-  } catch (error) {
-    console.error('Error al obtener rutas:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ============================================================================
-// USERS
-// ============================================================================
-
-app.get('/users/:documento', async (req, res) => {
-  try {
-    const usuario = await prisma.usuario.findUnique({
-      where: { documentoUsu: req.params.documento },
-      include: {
-        perfiles: {
-          include: { perfil: true }
-        },
-        vehiculos: true
-      }
-    });
-
-    if (!usuario) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (!usuarioResult.rows || usuarioResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Usuario no encontrado' });
     }
 
-    res.json(usuario);
+    const documento = usuarioResult.rows[0][0];
+
+    // Verificar código
+    const result = await connection.execute(
+      `SELECT CODIGO_VER, FECHA_EXPIRACION_VER, USADO_VER FROM VERIFICACION_CORREO
+       WHERE DOCUMENTO_USU_VER = :documento 
+       AND USADO_VER = 'N'
+       ORDER BY FECHA_EXPIRACION_VER DESC`,
+      { documento }
+    );
+
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(400).json({ error: 'No hay código de verificación activo' });
+    }
+
+    const [codigoGuardado, fechaExpiracion, usado] = result.rows[0];
+
+    if (codigoGuardado !== code) {
+      return res.status(400).json({ error: 'Código incorrecto' });
+    }
+
+    // Marcar como usado
+    await connection.execute(
+      `UPDATE VERIFICACION_CORREO 
+       SET USADO_VER = 'S'
+       WHERE DOCUMENTO_USU_VER = :documento AND CODIGO_VER = :codigo`,
+      { documento, codigo: code }
+    );
+
+    // Obtener rol del usuario
+    const perfilResult = await connection.execute(
+      `SELECT p.NOMBRE_PER FROM USUARIO_PERFIL up
+       JOIN PERFIL p ON up.ID_PER_UPE = p.ID_PER
+       WHERE up.DOCUMENTO_USU_UPE = :documento`,
+      { documento }
+    );
+
+    const rol = perfilResult.rows ? perfilResult.rows[0][0] : 'PASAJERO';
+
+    // Confirmar cambios
+    await connection.commit();
+
+    res.json({
+      message: 'Email verificado exitosamente',
+      id: documento,
+      email: email,
+      role: rol
+    });
+
   } catch (error) {
-    console.error('Error al obtener usuario:', error);
+    console.error('Error en verify:', error);
     res.status(500).json({ error: error.message });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Error cerrando conexión:', err);
+      }
+    }
   }
 });
 
 // ============================================================================
-// ERROR HANDLING
+// GET DYNAMIC MENU BY PROFILE
 // ============================================================================
 
-app.use((err, req, res, next) => {
-  console.error('Error no manejado:', err);
-  res.status(500).json({ 
-    error: 'Error interno del servidor',
-    message: err.message 
-  });
+app.get('/menu/:idPerfil', async (req, res) => {
+  let connection;
+  try {
+    const { idPerfil } = req.params;
+
+    if (!idPerfil) {
+      return res.status(400).json({ error: 'ID de perfil requerido' });
+    }
+
+    connection = await getConnection();
+
+    const result = await connection.execute(`
+      SELECT 
+        m.ID_MEN,
+        m.NOMBRE_MEN,
+        m.URL_MEN,
+        m.ORDEN_MEN,
+        mp.INSERT_MPE,
+        mp.UPDATE_MPE,
+        mp.DELETE_MPE,
+        mp.SELECT_MPE
+      FROM MENU m
+      JOIN MENU_PERFIL mp ON m.ID_MEN = mp.ID_MENU_MPE
+      WHERE mp.ID_PERFIL_MPE = :idPerfil
+      ORDER BY m.ORDEN_MEN
+    `, { idPerfil: parseInt(idPerfil) });
+
+    const menuItems = result.rows ? result.rows.map(row => ({
+      id: row[0],
+      nombre: row[1],
+      url: row[2],
+      orden: row[3],
+      permisos: {
+        crear: row[4] === 'S',
+        actualizar: row[5] === 'S',
+        eliminar: row[6] === 'S',
+        leer: row[7] === 'S'
+      }
+    })) : [];
+
+    res.json({
+      status: 'OK',
+      perfil: parseInt(idPerfil),
+      menu: menuItems,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error en GET /menu/:idPerfil:', error);
+    res.status(500).json({
+      status: 'ERROR',
+      message: 'Error al obtener menú',
+      error: error.message
+    });
+  } finally {
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (err) {
+        console.error('Error cerrando conexión:', err);
+      }
+    }
+  }
+});
+
+// ============================================================================
+// VALIDATE PERMISSIONS
+// ============================================================================
+
+app.post('/validate-permission', async (req, res) => {
+  const { idPerfil, url, action } = req.body;
+
+  try {
+    if (!idPerfil || !url || !action) {
+      return res.status(400).json({
+        error: 'idPerfil, url y action son requeridos'
+      });
+    }
+
+    const hasPermission = await validatePermission(idPerfil, url, action);
+
+    res.json({
+      status: 'OK',
+      idPerfil,
+      url,
+      action,
+      hasPermission,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error en POST /validate-permission:', error);
+    res.status(500).json({
+      status: 'ERROR',
+      message: 'Error al validar permiso',
+      error: error.message
+    });
+  }
 });
 
 // ============================================================================
 // START SERVER
 // ============================================================================
 
-const PORT = process.env.PORT || 4000;
-
-const main = async () => {
+async function startServer() {
   try {
-    // Verificar conexión a la BD
-    await prisma.$queryRaw`SELECT 1`;
-    console.log('✅ Conectado a Oracle');
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Servidor ejecutándose en http://localhost:${PORT}`);
-      console.log(`📊 BD: Oracle`);
-      console.log(`📁 Health Check: GET http://localhost:${PORT}/health`);
+    await initializePool();
+    
+    app.listen(port, () => {
+      console.log(`\nBackend corriendo en http://localhost:${port}`);
+      console.log(`Conectado a Oracle XE`);
+      console.log(`Health check: http://localhost:${port}/health\n`);
     });
   } catch (error) {
-    console.error('❌ Error conectando a BD:', error.message);
+    console.error('Error al iniciar servidor:', error);
     process.exit(1);
   }
-};
-
-main();
+}
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\n⛔ Apagando servidor...');
-  await prisma.$disconnect();
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, closing pool...');
+  await closePool();
   process.exit(0);
 });
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, closing pool...');
+  await closePool();
+  process.exit(0);
+});
+
+startServer();

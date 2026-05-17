@@ -49,11 +49,207 @@ const recentRoutes = [
 ]
 
 interface DashboardContentProps {
-  userType?: "passenger" | "driver"
+  userType?: "passenger" | "driver" | "admin"
 }
 
 export function DashboardContent({ userType = "passenger" }: DashboardContentProps) {
   const isDriver = userType === "driver"
+  const isAdmin = userType === "admin"
+
+  // Admin Dashboard
+  if (isAdmin) {
+    return (
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Panel de Administración</h1>
+            <p className="text-muted-foreground">Gestión central de VamosPues</p>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-0 shadow-sm">
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground mb-2">Total Usuarios</p>
+              <p className="text-3xl font-bold">1,234</p>
+              <p className="text-xs text-muted-foreground">+12% desde el mes anterior</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground mb-2">Viajes Activos</p>
+              <p className="text-3xl font-bold">87</p>
+              <p className="text-xs text-muted-foreground">En progreso</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground mb-2">Ingresos Total</p>
+              <p className="text-3xl font-bold text-green-600">$45.2k</p>
+              <p className="text-xs text-muted-foreground">Esta semana</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground mb-2">Solicitudes Pendientes</p>
+              <p className="text-3xl font-bold text-orange-600">23</p>
+              <p className="text-xs text-muted-foreground">Requieren revisión</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Admin Tabs */}
+        <Tabs defaultValue="usuarios" className="w-full">
+          <TabsList className="grid w-full grid-cols-6 mb-6">
+            <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
+            <TabsTrigger value="vehiculos">Vehículos</TabsTrigger>
+            <TabsTrigger value="rutas">Rutas</TabsTrigger>
+            <TabsTrigger value="solicitudes">Solicitudes</TabsTrigger>
+            <TabsTrigger value="reportes">Reportes</TabsTrigger>
+            <TabsTrigger value="configuracion">Configuración</TabsTrigger>
+          </TabsList>
+
+          {/* Usuarios Tab */}
+          <TabsContent value="usuarios" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Gestión de Usuarios</CardTitle>
+                <CardDescription>Total: 1,234 usuarios registrados</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex gap-4">
+                    <Input placeholder="Buscar por email o nombre..." className="flex-1" />
+                    <Button className="bg-black text-white hover:bg-black/90">Buscar</Button>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nombre</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Fecha Registro</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>Juan García</TableCell>
+                        <TableCell>juan@example.com</TableCell>
+                        <TableCell><Badge>Conductor</Badge></TableCell>
+                        <TableCell>2024-05-10</TableCell>
+                        <TableCell><Badge variant="outline" className="bg-green-50">Activo</Badge></TableCell>
+                        <TableCell><Button variant="ghost" size="sm">Ver →</Button></TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>María López</TableCell>
+                        <TableCell>maria@example.com</TableCell>
+                        <TableCell><Badge variant="secondary">Pasajero</Badge></TableCell>
+                        <TableCell>2024-05-12</TableCell>
+                        <TableCell><Badge variant="outline" className="bg-green-50">Activo</Badge></TableCell>
+                        <TableCell><Button variant="ghost" size="sm">Ver →</Button></TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Vehiculos Tab */}
+          <TabsContent value="vehiculos" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Gestión de Vehículos</CardTitle>
+                <CardDescription>Total: 456 vehículos registrados</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Placa</TableHead>
+                      <TableHead>Marca/Modelo</TableHead>
+                      <TableHead>Conductor</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Fecha Registro</TableHead>
+                      <TableHead>Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>ABC-123</TableCell>
+                      <TableCell>Toyota Corolla</TableCell>
+                      <TableCell>Juan García</TableCell>
+                      <TableCell><Badge className="bg-green-100 text-green-800">Activo</Badge></TableCell>
+                      <TableCell>2024-05-10</TableCell>
+                      <TableCell><Button variant="ghost" size="sm">Ver →</Button></TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Rutas Tab */}
+          <TabsContent value="rutas" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Gestión de Rutas</CardTitle>
+                <CardDescription>Total: 234 rutas activas</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Funcionalidad de gestión de rutas en construcción</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Solicitudes Tab */}
+          <TabsContent value="solicitudes" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Solicitudes Pendientes</CardTitle>
+                <CardDescription>23 solicitudes requieren revisión</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Funcionalidad de solicitudes en construcción</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Reportes Tab */}
+          <TabsContent value="reportes" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Reportes y Análisis</CardTitle>
+                <CardDescription>Datos de desempeño y estadísticas</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Módulo de reportes en construcción</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Configuración Tab */}
+          <TabsContent value="configuracion" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuración del Sistema</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Opciones de configuración en construcción</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    )
+  }
 
   if (isDriver) {
     return (

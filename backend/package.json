@@ -1,27 +1,21 @@
 {
   "name": "vamonospues-backend",
   "version": "1.0.0",
-  "description": "Backend para aplicación Vamos Pues - Carpooling Oracle + Prisma",
+  "description": "Backend para aplicación Vamos Pues - Carpooling con Oracle XE",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "dev": "node index.js",
-    "start": "node index.js",
-    "seed": "node seed.js",
-    "prisma:generate": "prisma generate",
-    "prisma:studio": "prisma studio",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
   "keywords": [
     "carpooling",
     "oracle",
-    "prisma",
     "express"
   ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@prisma/client": "^6.4.1",
     "axios": "latest",
     "bcryptjs": "latest",
     "cors": "latest",
@@ -29,9 +23,6 @@
     "express": "latest",
     "jsonwebtoken": "latest",
     "nodemailer": "latest",
-    "prisma": "^6.4.1"
-  },
-  "devDependencies": {
-    "nodemon": "latest"
+    "oracledb": "^6.10.0"
   }
 }
