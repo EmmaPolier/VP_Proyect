@@ -60,11 +60,10 @@ INSERT INTO ESTADO_CUPO_RUTA VALUES (SEQ_ESTADO_CUPO_RUTA.NEXTVAL, 'RESERVADO');
 INSERT INTO ESTADO_CUPO_RUTA VALUES (SEQ_ESTADO_CUPO_RUTA.NEXTVAL, 'CANCELADO');
 INSERT INTO ESTADO_CUPO_RUTA VALUES (SEQ_ESTADO_CUPO_RUTA.NEXTVAL, 'COMPLETADO');
 
--- Tipos de transaccion
+-- Tipos de transaccion (sin RETIRO)
 INSERT INTO TIPO_TRANSACCION VALUES (SEQ_TIPO_TRANSACCION.NEXTVAL, 'RECARGA',    'Recarga de saldo a la cartera');
 INSERT INTO TIPO_TRANSACCION VALUES (SEQ_TIPO_TRANSACCION.NEXTVAL, 'PAGO_VIAJE', 'Descuento por pago de cupo');
 INSERT INTO TIPO_TRANSACCION VALUES (SEQ_TIPO_TRANSACCION.NEXTVAL, 'REEMBOLSO',  'Devolucion de saldo por cancelacion');
---INSERT INTO TIPO_TRANSACCION VALUES (SEQ_TIPO_TRANSACCION.NEXTVAL, 'RETIRO',     'Retiro de saldo por el conductor');
 
 -- Menu principal
 INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/dashboard',      'Inicio',         NULL, 1);
@@ -75,7 +74,7 @@ INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/perfil',         'Mi Perfil',      
 INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/historial',      'Historial',      NULL, 4);
 INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/admin',          'Administracion', NULL, 5);
 INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/solicitudes',    'Solicitudes',    NULL, 6);
-INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/vehiculos',      'Mis Vehículos',  NULL, 7);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/vehiculos',      'Mis Vehiculos',  NULL, 7);
 
 -- Permisos ADMIN (perfil 3) - acceso total a todo
 INSERT INTO MENU_PERFIL VALUES (1, 3, 'S','S','S','S');
@@ -103,7 +102,9 @@ INSERT INTO MENU_PERFIL VALUES (4, 2, 'S','S','S','S'); -- Publicar ruta (CRUD c
 INSERT INTO MENU_PERFIL VALUES (5, 2, 'N','S','N','S'); -- Mi perfil
 INSERT INTO MENU_PERFIL VALUES (6, 2, 'N','N','N','S'); -- Historial
 INSERT INTO MENU_PERFIL VALUES (8, 2, 'N','S','N','S'); -- Solicitudes (aceptar/rechazar)
-INSERT INTO MENU_PERFIL VALUES (9, 2, 'S','S','S','S'); -- Vehículos
+INSERT INTO MENU_PERFIL VALUES (9, 2, 'S','S','S','S'); -- Vehiculos
+
+COMMIT;
 
 
 -- =====================================================
@@ -111,34 +112,43 @@ INSERT INTO MENU_PERFIL VALUES (9, 2, 'S','S','S','S'); -- Vehículos
 -- =====================================================
 
 -- Usuarios de prueba
+-- Davison y Jose Luis arrancan con saldo 0 (regla de negocio)
+-- Emmanuel (ADMIN) tiene saldo especial de 99999
 INSERT INTO USUARIO VALUES (
     '1234567890', 'Davison', 'Jaramillo', 'Gonzalez',
     'davisonjaramillo23251@elpoli.edu.co', '3001234567',
     TO_DATE('1998-05-15', 'YYYY-MM-DD'),
-    'clave123', 'https://storage/fotos/davison.jpg',
-    50000, SYSDATE, 1
+    '$2b$10$l52UO3euHCQUc8m5A4q1xeTyHcBhTb9Oz/crQ.Fivr0jGe4Cdnhqu', 'https://storage/fotos/davison.jpg',
+    0, SYSDATE, 1
 );
 INSERT INTO USUARIO VALUES (
     '0987654321', 'Jose Luis', 'Grajales', 'Cuervo',
     'jose_grajales23251@elpoli.edu.co', '3109876543',
     TO_DATE('2000-09-22', 'YYYY-MM-DD'),
-    'clave456', 'https://storage/fotos/jose.jpg',
-    80000, SYSDATE, 1
+    '$2b$10$kBTm2uw104deC4EYabirvurCH4pdp737BvZrRbVSiAaaTA3AOoq5u', 'https://storage/fotos/jose.jpg',
+    0, SYSDATE, 1
 );
 INSERT INTO USUARIO VALUES (
     '1122334455', 'Emmanuel', 'Echenique', NULL,
     'emmanuelechenique23251@elpoli.edu.co', '3201122334',
     TO_DATE('1995-01-10', 'YYYY-MM-DD'),
-    'clave789', 'https://storage/fotos/emmanuel.jpg',
+    '$2b$10$8mWH/Q7/N.ukF8wkkHO/Uuob7.u8IOZgxUuI5633gawmTCEX8ppYK', 'https://storage/fotos/emmanuel.jpg',
     99999, SYSDATE, 1
 );
 
 -- Asignar perfiles a usuarios
-INSERT INTO USUARIO_PERFIL VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, '1234567890', 1, 4.5, SYSDATE); -- Davison -> PASAJERO
-INSERT INTO USUARIO_PERFIL VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, '0987654321', 2, 4.8, SYSDATE); -- Jose Luis -> CONDUCTOR
-INSERT INTO USUARIO_PERFIL VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, '1122334455', 3, 5.0, SYSDATE); -- Emmanuel -> ADMIN
+-- Se omite CALIFICACION_UPE: Oracle asigna DEFAULT 5.0 automaticamente
+INSERT INTO USUARIO_PERFIL (ID_UPE, DOCUMENTO_USU_UPE, ID_PER_UPE, FECHA_ASIGNACION_UPE)
+    VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, '1234567890', 1, SYSDATE); -- Davison   -> PASAJERO
 
--- Vehiculo del conductor (Jose Luis, ID_UPE = 2)
+INSERT INTO USUARIO_PERFIL (ID_UPE, DOCUMENTO_USU_UPE, ID_PER_UPE, FECHA_ASIGNACION_UPE)
+    VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, '0987654321', 2, SYSDATE); -- Jose Luis -> CONDUCTOR
+
+INSERT INTO USUARIO_PERFIL (ID_UPE, DOCUMENTO_USU_UPE, ID_PER_UPE, FECHA_ASIGNACION_UPE)
+    VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, '1122334455', 3, SYSDATE); -- Emmanuel  -> ADMIN
+
+-- Vehiculo del conductor (Jose Luis)
+-- MARCA=1 CHEVROLET | MODELO=3 LOGAN | COLOR=1 BLANCO | ESTADO=1 ACTIVO
 INSERT INTO VEHICULO VALUES (
     SEQ_VEHICULO.NEXTVAL, '0987654321', 1, 3, 1, 1,
     'ABC123',
@@ -151,180 +161,6 @@ INSERT INTO VEHICULO VALUES (
 
 COMMIT;
 
-
--- =====================================================
--- SECCIÓN 3: SELECT - CONSULTAS ÚTILES DEL NEGOCIO
--- =====================================================
-
--- Ver todos los usuarios con su estado
-SELECT
-    u.DOCUMENTO_USU,
-    u.NOMBRES_USU || ' ' || u.PRIMER_APELLIDO_USU AS NOMBRE_COMPLETO,
-    u.CORREO_USU,
-    u.NUMERO_TELEFONO_USU,
-    u.SALDO_CARTERA_USU,
-    e.NOMBRE_EUS AS ESTADO
-FROM USUARIO u
-JOIN ESTADO_USUARIO e ON u.ID_EST_USU = e.ID_EUS;
-
--- Ver usuarios con su perfil asignado (pasajero, conductor, admin)
-SELECT
-    u.DOCUMENTO_USU,
-    u.NOMBRES_USU || ' ' || u.PRIMER_APELLIDO_USU AS NOMBRE_COMPLETO,
-    p.NOMBRE_PER AS PERFIL,
-    up.CALIFICACION_UPE
-FROM USUARIO u
-JOIN USUARIO_PERFIL up ON u.DOCUMENTO_USU = up.DOCUMENTO_USU_UPE
-JOIN PERFIL p ON up.ID_PER_UPE = p.ID_PER;
-
--- Ver rutas activas con info del conductor y vehiculo
-SELECT
-    r.ID_RUT,
-    u.NOMBRES_USU || ' ' || u.PRIMER_APELLIDO_USU AS CONDUCTOR,
-    v.PLACA_VEH,
-    r.HORA_SALIDA_RUT,
-    r.CUPOS_DISPONIBLES_RUT,
-    r.PRECIO_CUPO_RUT,
-    r.DISTANCIA_KM_RUT,
-    er.NOMBRE_ERU AS ESTADO
-FROM RUTA r
-JOIN USUARIO_PERFIL up ON r.ID_UPE_RUT = up.ID_UPE
-JOIN USUARIO u ON up.DOCUMENTO_USU_UPE = u.DOCUMENTO_USU
-JOIN VEHICULO v ON r.ID_VEH_RUT = v.ID_VEH
-JOIN ESTADO_RUTA er ON r.ID_EST_RUT = er.ID_ERU
-WHERE er.NOMBRE_ERU = 'ACTIVA';
-
--- Ver solicitudes de cupo con su estado
-SELECT
-    s.ID_SOL,
-    u.NOMBRES_USU || ' ' || u.PRIMER_APELLIDO_USU AS PASAJERO,
-    s.MONTO_SOL,
-    es.NOMBRE_ESO AS ESTADO,
-    mp.NOMBRE_MPA AS METODO_PAGO,
-    s.FECHA_CREACION_SOL
-FROM SOLICITUD_CUPO s
-JOIN USUARIO_PERFIL up ON s.ID_UPE_SOL = up.ID_UPE
-JOIN USUARIO u ON up.DOCUMENTO_USU_UPE = u.DOCUMENTO_USU
-JOIN ESTADO_SOLICITUD es ON s.ID_ESO_SOL = es.ID_ESO
-JOIN METODO_PAGO mp ON s.ID_MPA_SOL = mp.ID_MPA;
-
--- Ver historial de viajes de un usuario específico
-SELECT
-    h.ID_HIS,
-    h.ROL_VIAJE_HIS,
-    h.FECHA_VIAJE_HIS,
-    r.PRECIO_CUPO_RUT
-FROM HISTORIAL_VIAJE h
-JOIN CUPO_RUTA cr ON h.SOL_ID_HIS = cr.ID_SOL_CRU AND h.RUT_ID_HIS = cr.ID_RUT_CRU
-JOIN RUTA r ON cr.ID_RUT_CRU = r.ID_RUT
-WHERE h.DOCUMENTO_USU_HIS = '1234567890';
-
--- Ver calificaciones recibidas por un usuario
-SELECT
-    c.PUNTAJE_CAL,
-    c.COMENTARIO_CAL,
-    c.ROL_CALIFICADOR_CAL,
-    c.FECHA_CREACION_CAL
-FROM CALIFICACION c
-WHERE c.DOCUMENTO_CALIFICADO_CAL = '0987654321'
-ORDER BY c.FECHA_CREACION_CAL DESC;
-
--- Ver transacciones de cartera de un usuario
-SELECT
-    t.ID_TRA,
-    tt.NOMBRE_TTR,
-    t.MONTO_TRA,
-    t.SALDO_RESULTANTE_TRA,
-    t.FECHA_REALIZACION_TRA
-FROM TRANSACCIONES_CARTERA t
-JOIN TIPO_TRANSACCION tt ON t.ID_TTR_TRA = tt.ID_TTR
-WHERE t.DOCUMENTO_USU_TRA = '1234567890'
-ORDER BY t.FECHA_REALIZACION_TRA DESC;
-
-
--- =====================================================
--- SECCIÓN 4: UPDATE - ACTUALIZACIONES COMUNES
--- =====================================================
-
--- Actualizar foto de perfil de un usuario
-UPDATE USUARIO
-SET FOTO_URL_USU = 'https://storage/fotos/davison_nuevo.jpg'
-WHERE DOCUMENTO_USU = '1234567890';
-
--- Actualizar saldo de cartera al hacer una recarga
-UPDATE USUARIO
-SET SALDO_CARTERA_USU = SALDO_CARTERA_USU + 30000
-WHERE DOCUMENTO_USU = '1234567890';
-
--- Cambiar estado de una ruta a EN_CURSO
-UPDATE RUTA
-SET ID_EST_RUT = (SELECT ID_ERU FROM ESTADO_RUTA WHERE NOMBRE_ERU = 'EN_CURSO'),
-    UPDATED_AT_RUT = SYSDATE
-WHERE ID_RUT = 1;
-
--- Aceptar una solicitud de cupo
-UPDATE SOLICITUD_CUPO
-SET ID_ESO_SOL = (SELECT ID_ESO FROM ESTADO_SOLICITUD WHERE NOMBRE_ESO = 'ACEPTADA')
-WHERE ID_SOL = 1;
-
--- Actualizar cupos disponibles al aceptar un pasajero
-UPDATE RUTA
-SET CUPOS_DISPONIBLES_RUT = CUPOS_DISPONIBLES_RUT - 1,
-    UPDATED_AT_RUT = SYSDATE
-WHERE ID_RUT = 1;
-
--- Suspender un usuario
-UPDATE USUARIO
-SET ID_EST_USU = (SELECT ID_EUS FROM ESTADO_USUARIO WHERE NOMBRE_EUS = 'SUSPENDIDO')
-WHERE DOCUMENTO_USU = '1234567890';
-
--- Actualizar calificacion promedio de un usuario_perfil
-UPDATE USUARIO_PERFIL
-SET CALIFICACION_UPE = (
-    SELECT ROUND(AVG(c.PUNTAJE_CAL), 1)
-    FROM CALIFICACION c
-    WHERE c.DOCUMENTO_CALIFICADO_CAL = DOCUMENTO_USU_UPE
-)
-WHERE DOCUMENTO_USU_UPE = '0987654321';
-
--- Actualizar URLs del menú
-UPDATE MENU SET URL_MEN = '/dashboard'      WHERE NOMBRE_MEN = 'Inicio';
-UPDATE MENU SET URL_MEN = '/rutas'          WHERE NOMBRE_MEN = 'Rutas';
-UPDATE MENU SET URL_MEN = '/rutas/buscar'   WHERE NOMBRE_MEN = 'Buscar Ruta';
-UPDATE MENU SET URL_MEN = '/rutas/publicar' WHERE NOMBRE_MEN = 'Publicar Ruta';
-UPDATE MENU SET URL_MEN = '/perfil'         WHERE NOMBRE_MEN = 'Mi Perfil';
-UPDATE MENU SET URL_MEN = '/historial'      WHERE NOMBRE_MEN = 'Historial';
-UPDATE MENU SET URL_MEN = '/admin'          WHERE NOMBRE_MEN = 'Administracion';
-
-COMMIT;
-
-
--- =====================================================
--- SECCIÓN 5: DELETE - ELIMINACIONES
--- =====================================================
-
--- Eliminar un menú que ya no se usa (primero sus permisos, luego el menú)
-DELETE FROM MENU_PERFIL WHERE ID_MENU_MPE = 7;
-DELETE FROM MENU WHERE ID_MEN = 7;
-
--- Cancelar una solicitud (cambio de estado, no se borra el registro)
-UPDATE SOLICITUD_CUPO
-SET ID_ESO_SOL = (SELECT ID_ESO FROM ESTADO_SOLICITUD WHERE NOMBRE_ESO = 'CANCELADA')
-WHERE ID_SOL = 1;
-
--- Eliminar códigos de verificación ya usados y expirados (limpieza periódica)
-DELETE FROM VERIFICACION_CORREO
-WHERE USADO_VER = 'S'
-AND FECHA_EXPIRACION_VER < SYSDATE;
-
--- Eliminar un vehículo inactivo sin rutas asociadas
-DELETE FROM VEHICULO
-WHERE ID_EST_VEH = (SELECT ID_EVE FROM ESTADO_VEHICULO WHERE NOMBRE_EVE = 'INACTIVO')
-AND ID_VEH NOT IN (SELECT DISTINCT ID_VEH_RUT FROM RUTA);
-
-COMMIT;
-
-
 prompt =====================================================
-prompt Módulo 4 ejecutado: DML - VamonosPues
+prompt Modulo 4 ejecutado: DML (solo INSERTs) - VamonosPues
 prompt =====================================================
