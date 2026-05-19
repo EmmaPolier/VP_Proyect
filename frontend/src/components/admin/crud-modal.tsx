@@ -1,0 +1,161 @@
+'use client';
+
+/**
+ * Modal para crear/editar registros CRUD
+ */
+
+import React, { useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Loader2, AlertCircle } from 'lucide-react';
+import { useForm } from '@/hooks/use-form';
+import { validateFormData } from '@/lib/validators';
+
+interface CRUDModalProps {
+  open: boolean;
+  title: string;
+  fields: Array<{
+    name: string;
+    label: string;
+    type?: 'text' | 'number' | 'email' | 'textarea';
+    required?: boolean;
+    placeholder?: string;
+  }>;
+  initialData?: Record<string, any>;
+  tabla: string;
+  loading?: boolean;
+  onSubmit: (data: Record<string, any>) => Promise<void>;
+  onClose: () => void;
+}
+
+export function CRUDModal({
+  open,
+  title,
+  fields,
+  initialData,
+  tabla,
+  loading = false,
+  onSubmit,
+  onClose,
+}: CRUDModalProps) {
+  const [initialValues] = React.useState(() =>
+    initialData || fields.reduce((acc, f) => ({ ...acc, [f.name]: '' }), {})
+  );
+
+  const form = useForm({
+    initialValues: initialData || initialValues,
+    validate: (values) => {
+      return validateFormData(tabla, values);
+    },
+    onSubmit: async (values) => {
+      await onSubmit(values);
+      form.reset();
+      onClose();
+    },
+  });
+
+  useEffect(() => {
+    if (initialData) {
+      Object.entries(initialData).forEach(([key, value]) => {
+        form.setFieldValue(key, value);
+      });
+    }
+  }, [initialData, open]);
+
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      form.reset();
+      onClose();
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>
+            Completa los datos y haz clic en guardar.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={form.handleSubmit} className="space-y-4">
+          {fields.map((field) => {
+            const fieldError = form.errors[field.name as keyof typeof form.errors];
+            const isTouched = form.touched[field.name as keyof typeof form.touched];
+            const hasError = isTouched && fieldError;
+
+            return (
+              <div key={field.name} className="space-y-2">
+                <Label htmlFor={field.name}>
+                  {field.label}
+                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                </Label>
+
+                {field.type === 'textarea' ? (
+                  <textarea
+                    id={field.name}
+                    name={field.name}
+                    value={form.values[field.name as keyof typeof form.values] || ''}
+                    onChange={(e) =>
+                      form.setFieldValue(field.name, e.target.value)
+                    }
+                    onBlur={form.handleBlur}
+                    placeholder={field.placeholder}
+                    rows={4}
+                    className={`w-full px-3 py-2 border rounded-md text-sm 
+                      focus:outline-none focus:ring-2 focus:ring-primary
+                      ${hasError ? 'border-red-500' : 'border-gray-300'}
+                    `}
+                  />
+                ) : (
+                  <Input
+                    id={field.name}
+                    name={field.name}
+                    type={field.type || 'text'}
+                    value={form.values[field.name as keyof typeof form.values] || ''}
+                    onChange={form.handleChange}
+                    onBlur={form.handleBlur}
+                    placeholder={field.placeholder}
+                    className={hasError ? 'border-red-500' : ''}
+                  />
+                )}
+
+                {hasError && (
+                  <div className="flex items-center gap-1 text-sm text-red-500">
+                    <AlertCircle className="w-4 h-4" />
+                    {fieldError}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
