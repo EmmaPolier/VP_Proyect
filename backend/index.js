@@ -7,6 +7,7 @@ import { initializePool, closePool } from './db.js';
 import { register, verify, login } from './controllers/auth.controller.js';
 import menuRoutes from './routes/menu.routes.js';
 import vehicleRoutes from './routes/vehicle.routes.js';
+import adminRoutes from './routes/admin/index.js';
 
 dotenv.config();
 
@@ -38,6 +39,9 @@ app.use('/menu', menuRoutes);
 
 // Rutas de vehículos
 app.use('/vehicles', vehicleRoutes);
+
+// Rutas de administración
+app.use('/api/admin', adminRoutes);
 
 // ============================================================================
 // HEALTH CHECK
