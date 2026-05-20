@@ -5,17 +5,16 @@
 
 import express from 'express';
 import catalogsRoutes from './catalogs.routes.js';
+import usuariosRoutes from './usuarios.routes.js';
+import vehiculosRoutes from './vehiculos.routes.js';
 
 const router = express.Router();
 
 // Rutas de catálogos (tablas tipo)
 router.use('/catalogs', catalogsRoutes);
 
-// TODO: Agregar más rutas según se desarrollen
-// router.use('/usuarios', usuariosRoutes);
-// router.use('/vehiculos', vehiculosRoutes);
-// router.use('/rutas', rutasRoutes);
-// router.use('/solicitudes', solicitudesRoutes);
-// router.use('/estadisticas', estadisticasRoutes);
+// Rutas de administración de datos maestros y entidades fuertes
+router.use('/usuarios', usuariosRoutes);
+router.use('/vehiculos', vehiculosRoutes);
 
 export default router;

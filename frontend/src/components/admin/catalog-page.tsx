@@ -5,7 +5,7 @@
  * Se usa para Perfiles, Marcas, Modelos, Colores, Estados, Métodos de Pago, Tipos de Transacción
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -20,14 +20,24 @@ import { Plus, AlertTriangle } from 'lucide-react';
 import { useCrud } from '@/hooks/use-crud';
 import { DataTable, DataTableColumn } from '@/components/admin/data-table';
 import { CRUDModal } from '@/components/admin/crud-modal';
-import { CATALOG_CONFIG } from '@/lib/api-constants';
+import { CATALOG_CONFIG, ESTADO_TIPOS } from '@/lib/api-constants';
 
 interface CatalogPageProps {
   tabla: string;
 }
 
 export function CatalogPage({ tabla }: CatalogPageProps) {
-  const config = CATALOG_CONFIG[tabla as keyof typeof CATALOG_CONFIG];
+  const config = CATALOG_CONFIG[tabla as keyof typeof CATALOG_CONFIG] as {
+    label: string;
+    icon: string;
+    endpoint: string | ((tipo: string) => string);
+    fields: string[];
+    formFields?: string[];
+    fieldTypes?: Record<string, string>;
+    requiredFields?: string[];
+    tipoOptions?: Array<{ label: string; value: string }>;
+    defaultTipo?: string;
+  };
 
   if (!config) {
     return (
@@ -37,9 +47,31 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
     );
   }
 
+  const isEstadoCatalog = tabla === 'estados' && Array.isArray(config.tipoOptions);
+  const [selectedTipo, setSelectedTipo] = useState(
+    isEstadoCatalog ? config.defaultTipo || ESTADO_TIPOS.USUARIO : ''
+  );
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<any | null>(null);
+
+  const endpoint = isEstadoCatalog
+    ? (config.endpoint as (tipo: string) => string)(selectedTipo)
+    : (config.endpoint as string);
+
+  const crudOptions = useMemo(
+    () => ({
+      pageSize: 10,
+      onSuccess: (msg: string) => {
+        // Toast notification aquí (implementar después)
+        console.log(msg);
+      },
+      onError: (err: Error) => {
+        console.error(err);
+      },
+    }),
+    []
+  );
 
   const {
     items,
@@ -54,24 +86,39 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
     updateItem,
     deleteItem,
     setPage,
-  } = useCrud(config.endpoint, {
-    pageSize: 10,
-    onSuccess: (msg) => {
-      // Toast notification aquí (implementar después)
-      console.log(msg);
-    },
-    onError: (err) => {
-      console.error(err);
-    },
-  });
+  } = useCrud(endpoint, crudOptions);
 
-  // Cargar datos al montar
+  // Cargar datos al montar y cuando cambie el tipo de estado
   useEffect(() => {
     fetchItems(1);
-  }, []);
+  }, [fetchItems, selectedTipo]);
+
+  const visibleFields = config.fields.filter((field) => {
+    if (!isEstadoCatalog) {
+      return true;
+    }
+
+    if (field === 'descripcion' && selectedTipo !== ESTADO_TIPOS.USUARIO) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const formFields = (config.formFields ?? config.fields).filter((field) => {
+    if (!isEstadoCatalog) {
+      return true;
+    }
+
+    if (field === 'descripcion' && selectedTipo !== ESTADO_TIPOS.USUARIO) {
+      return false;
+    }
+
+    return true;
+  });
 
   // Definir columnas dinámicamente
-  const columns: DataTableColumn<any>[] = config.fields.map((field) => ({
+  const columns: DataTableColumn<any>[] = visibleFields.map((field) => ({
     header:
       field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1'),
     accessor: field,
@@ -93,10 +140,14 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
   };
 
   const handleModalSubmit = async (data: any) => {
+    const cleanedData = Object.fromEntries(
+      Object.entries(data).filter(([, value]) => value !== '' && value !== undefined)
+    );
+
     if (selectedItem?.id) {
-      await updateItem(selectedItem.id, data);
+      await updateItem(selectedItem.id, cleanedData);
     } else {
-      await createItem(data);
+      await createItem(cleanedData);
     }
   };
 
@@ -110,27 +161,51 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <span className="text-3xl">{config.icon}</span>
             {config.label}
+            {isEstadoCatalog && selectedTipo ? ` - ${config.tipoOptions!.find((option) => option.value === selectedTipo)?.label}` : ''}
           </h1>
           <p className="text-muted-foreground mt-1">
             Gestiona los registros de {config.label.toLowerCase()}
+            {isEstadoCatalog && selectedTipo ? ` del tipo ${config.tipoOptions!.find((option) => option.value === selectedTipo)?.label.toLowerCase()}` : ''}
           </p>
         </div>
 
-        <Button onClick={handleCreateClick} size="lg">
-          <Plus className="w-4 h-4 mr-2" />
-          Nuevo
-        </Button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {isEstadoCatalog && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="estadoTipo" className="text-sm font-medium">
+                Tipo de estado:
+              </label>
+              <select
+                id="estadoTipo"
+                value={selectedTipo}
+                onChange={(e) => setSelectedTipo(e.target.value)}
+                className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                {config.tipoOptions!.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <Button onClick={handleCreateClick} size="lg">
+            <Plus className="w-4 h-4 mr-2" />
+            Nuevo
+          </Button>
+        </div>
       </div>
 
       {/* Error Alert */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-red-900">Error</p>
             <p className="text-sm text-red-700">{error.message}</p>
@@ -157,20 +232,28 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
       <CRUDModal
         open={modalOpen}
         title={selectedItem ? `Editar ${config.label}` : `Nuevo ${config.label}`}
-        fields={config.fields.map((field) => ({
-          name: field,
-          label: field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1'),
-          type:
-            field === 'ano'
-              ? 'number'
-              : field.includes('descripcion')
-                ? 'textarea'
-                : 'text',
-          required: !field.includes('descripcion'),
-        }))}
-        initialData={selectedItem}
+          fields={formFields.map((field) => {
+            const type = config.fieldTypes?.[field] ??
+              (field === 'ano' ? 'number' :
+                field.includes('descripcion') ? 'textarea' :
+                  field === 'email' ? 'email' :
+                    field.includes('fecha') ? 'date' :
+                      field === 'contrasena' ? 'password' :
+                        'text');
+
+            const required = config.requiredFields
+              ? config.requiredFields.includes(field)
+              : !field.includes('descripcion');
+
+            return {
+              name: field,
+              label: field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1'),
+              type: type as 'text' | 'number' | 'email' | 'textarea',
+              required,
+              placeholder: field.includes('descripcion') ? 'Opcional' : undefined,
+            };
+          })}
         tabla={tabla}
-        loading={loading}
         onSubmit={handleModalSubmit}
         onClose={() => setModalOpen(false)}
       />
