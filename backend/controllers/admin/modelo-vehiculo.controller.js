@@ -20,8 +20,10 @@ export async function getAllModelos(req, res) {
     const total = totalResult.rows[0][0];
 
     const result = await connection.execute(
-      `SELECT ID_MOD, NOMBRE_MOD, ANIO_MOD FROM MODELO_VEHICULO 
-       ORDER BY ID_MOD
+      `SELECT m.ID_MOD, m.NOMBRE_MOD, m.ANIO_MOD, mm.ID_MAR_MMV
+       FROM MODELO_VEHICULO m
+       LEFT JOIN MARCA_MODELO_VEH mm ON m.ID_MOD = mm.ID_MOD_MMV
+       ORDER BY m.ID_MOD
        OFFSET :offset ROWS FETCH NEXT :pageSize ROWS ONLY`,
       { offset, pageSize }
     );
@@ -29,7 +31,8 @@ export async function getAllModelos(req, res) {
     const data = result.rows.map(row => ({
       id: row[0],
       nombre: row[1],
-      ano: row[2]
+      ano: row[2],
+      brandId: row[3]
     }));
 
     paginatedResponse(res, data, page, pageSize, total, 'Modelos obtenidos exitosamente');
@@ -48,7 +51,10 @@ export async function getModeloById(req, res) {
     connection = await getConnection();
     
     const result = await connection.execute(
-      `SELECT ID_MOD, NOMBRE_MOD, ANIO_MOD FROM MODELO_VEHICULO WHERE ID_MOD = :id`,
+      `SELECT m.ID_MOD, m.NOMBRE_MOD, m.ANIO_MOD, mm.ID_MAR_MMV
+       FROM MODELO_VEHICULO m
+       LEFT JOIN MARCA_MODELO_VEH mm ON m.ID_MOD = mm.ID_MOD_MMV
+       WHERE m.ID_MOD = :id`,
       { id }
     );
 
@@ -57,7 +63,7 @@ export async function getModeloById(req, res) {
     }
 
     const row = result.rows[0];
-    successResponse(res, { id: row[0], nombre: row[1], ano: row[2] }, 'Modelo obtenido exitosamente');
+    successResponse(res, { id: row[0], nombre: row[1], ano: row[2], brandId: row[3] }, 'Modelo obtenido exitosamente');
   } catch (error) {
     errorResponse(res, error, 'Error al obtener modelo', 500);
   } finally {
@@ -66,7 +72,12 @@ export async function getModeloById(req, res) {
 }
 
 export async function createModelo(req, res) {
-  const { nombre, ano } = req.body;
+  const { nombre, ano, brandId } = req.body;
+
+  // Validar que se proporcione marca
+  if (!brandId) {
+    return errorResponse(res, null, 'La marca del modelo es requerida', 400);
+  }
 
   const validation = validateModeloVehiculo({ NOMBRE_MOD: nombre, ANIO_MOD: ano });
   if (!validation.valid) {
@@ -77,6 +88,16 @@ export async function createModelo(req, res) {
   try {
     connection = await getConnection();
 
+    // Verificar que la marca existe
+    const brandCheck = await connection.execute(
+      `SELECT ID_MAR FROM MARCA_VEHICULO WHERE ID_MAR = :brandId`,
+      { brandId }
+    );
+
+    if (!brandCheck.rows || brandCheck.rows.length === 0) {
+      return errorResponse(res, null, 'La marca especificada no existe', 404);
+    }
+
     const checkResult = await connection.execute(
       `SELECT COUNT(*) as count FROM MODELO_VEHICULO WHERE NOMBRE_MOD = :nombre AND ANIO_MOD = :ano`,
       { nombre, ano }
@@ -86,13 +107,27 @@ export async function createModelo(req, res) {
       return errorResponse(res, null, 'El modelo ya existe', 409);
     }
 
+    // Obtener el siguiente ID de modelo
+    const seqResult = await connection.execute(
+      `SELECT SEQ_MODELO_VEHICULO.NEXTVAL FROM DUAL`
+    );
+    const modeloId = seqResult.rows[0][0];
+
+    // Insertar modelo
     await connection.execute(
       `INSERT INTO MODELO_VEHICULO (ID_MOD, NOMBRE_MOD, ANIO_MOD)
-       VALUES (SEQ_MODELO_VEHICULO.NEXTVAL, :nombre, :ano)`,
-      { nombre, ano }
+       VALUES (:modeloId, :nombre, :ano)`,
+      { modeloId, nombre, ano }
     );
 
-    successResponse(res, { nombre, ano }, 'Modelo creado exitosamente', 201);
+    // Crear la relación marca-modelo
+    await connection.execute(
+      `INSERT INTO MARCA_MODELO_VEH (ID_MM_VEH, ID_MAR_MMV, ID_MOD_MMV, FECHA_CREACION_MMV)
+       VALUES (SEQ_MARCA_MODELO_VEH.NEXTVAL, :brandId, :modeloId, SYSDATE)`,
+      { brandId, modeloId }
+    );
+
+    successResponse(res, { id: modeloId, nombre, ano, brandId }, 'Modelo creado exitosamente', 201);
   } catch (error) {
     errorResponse(res, error, 'Error al crear modelo', 500);
   } finally {
@@ -102,7 +137,7 @@ export async function createModelo(req, res) {
 
 export async function updateModelo(req, res) {
   const { id } = req.params;
-  const { nombre, ano } = req.body;
+  const { nombre, ano, brandId } = req.body;
 
   const validation = validateModeloVehiculo({ NOMBRE_MOD: nombre, ANIO_MOD: ano });
   if (!validation.valid) {
@@ -122,12 +157,30 @@ export async function updateModelo(req, res) {
       return errorResponse(res, null, 'Modelo no encontrado', 404);
     }
 
+    // Si se proporciona brandId, validar que exista y actualizar la relación
+    if (brandId) {
+      const brandCheck = await connection.execute(
+        `SELECT ID_MAR FROM MARCA_VEHICULO WHERE ID_MAR = :brandId`,
+        { brandId }
+      );
+
+      if (!brandCheck.rows || brandCheck.rows.length === 0) {
+        return errorResponse(res, null, 'La marca especificada no existe', 404);
+      }
+
+      // Actualizar la relación marca-modelo
+      await connection.execute(
+        `UPDATE MARCA_MODELO_VEH SET ID_MAR_MMV = :brandId WHERE ID_MOD_MMV = :id`,
+        { brandId, id }
+      );
+    }
+
     await connection.execute(
       `UPDATE MODELO_VEHICULO SET NOMBRE_MOD = :nombre, ANIO_MOD = :ano WHERE ID_MOD = :id`,
       { id, nombre, ano }
     );
 
-    successResponse(res, { id, nombre, ano }, 'Modelo actualizado exitosamente');
+    successResponse(res, { id, nombre, ano, brandId }, 'Modelo actualizado exitosamente');
   } catch (error) {
     errorResponse(res, error, 'Error al actualizar modelo', 500);
   } finally {
@@ -151,8 +204,11 @@ export async function deleteModelo(req, res) {
       return errorResponse(res, null, 'Modelo no encontrado', 404);
     }
 
+    // Verificar si hay vehículos que usan este modelo a través de MARCA_MODELO_VEH
     const vehicleCheck = await connection.execute(
-      `SELECT COUNT(*) as count FROM VEHICULO WHERE ID_MOD_VEH = :id`,
+      `SELECT COUNT(*) as count FROM VEHICULO v
+       INNER JOIN MARCA_MODELO_VEH mm ON v.ID_MM_VEH = mm.ID_MM_VEH
+       WHERE mm.ID_MOD_MMV = :id`,
       { id }
     );
 
@@ -160,6 +216,13 @@ export async function deleteModelo(req, res) {
       return errorResponse(res, null, 'No se puede eliminar un modelo con vehículos registrados', 409);
     }
 
+    // Eliminar la relación marca-modelo
+    await connection.execute(
+      `DELETE FROM MARCA_MODELO_VEH WHERE ID_MOD_MMV = :id`,
+      { id }
+    );
+
+    // Eliminar el modelo
     await connection.execute(
       `DELETE FROM MODELO_VEHICULO WHERE ID_MOD = :id`,
       { id }

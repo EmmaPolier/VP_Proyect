@@ -248,7 +248,7 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
             return {
               name: field,
               label: field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1'),
-              type: type as 'text' | 'number' | 'email' | 'textarea',
+              type: type as 'text' | 'number' | 'email' | 'textarea' | 'select',
               required,
               placeholder: field.includes('descripcion') ? 'Opcional' : undefined,
             };

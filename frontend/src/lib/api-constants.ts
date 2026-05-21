@@ -43,6 +43,12 @@ export const CATALOG_CONFIG = {
     icon: '🚗',
     endpoint: API_ENDPOINTS.MODELOS,
     fields: ['nombre', 'ano'],
+    formFields: ['brandId', 'nombre', 'ano'],
+    fieldTypes: {
+      brandId: 'select',
+      ano: 'number',
+    },
+    requiredFields: ['brandId', 'nombre', 'ano'],
   },
   colores: {
     label: 'Colores',

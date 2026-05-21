@@ -17,7 +17,7 @@ export async function getMenuByPerfil(req, res) {
         m.ID_MEN,
         m.URL_MEN,
         m.NOMBRE_MEN,
-        m.URL_PADRE_MEN,
+        m.ID_PADRE_MEN,
         m.ORDEN_MEN,
         mp.INSERT_MPE,
         mp.UPDATE_MPE,

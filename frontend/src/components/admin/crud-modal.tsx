@@ -4,7 +4,7 @@
  * Modal para crear/editar registros CRUD
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,14 @@ import { Label } from '@/components/ui/label';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useForm } from '@/hooks/use-form';
 import { validateFormData } from '@/lib/validators';
+import axios from 'axios';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
+interface SelectOption {
+  id: number;
+  nombre: string;
+}
 
 interface CRUDModalProps {
   open: boolean;
@@ -26,7 +34,7 @@ interface CRUDModalProps {
   fields: Array<{
     name: string;
     label: string;
-    type?: 'text' | 'number' | 'email' | 'textarea';
+    type?: 'text' | 'number' | 'email' | 'textarea' | 'select';
     required?: boolean;
     placeholder?: string;
   }>;
@@ -50,6 +58,27 @@ export function CRUDModal({
   const [initialValues] = React.useState(() =>
     initialData || fields.reduce((acc, f) => ({ ...acc, [f.name]: '' }), {})
   );
+  const [brandOptions, setBrandOptions] = useState<SelectOption[]>([]);
+  const [loadingBrands, setLoadingBrands] = useState(false);
+
+  // Cargar marcas si hay un campo select de marca
+  useEffect(() => {
+    if (open && tabla === 'modelos' && fields.some(f => f.name === 'brandId')) {
+      loadBrands();
+    }
+  }, [open, tabla, fields]);
+
+  const loadBrands = async () => {
+    setLoadingBrands(true);
+    try {
+      const response = await axios.get(`${API_URL}/vehicles/brands`);
+      setBrandOptions(response.data.brands);
+    } catch (err) {
+      console.error('Error cargando marcas:', err);
+    } finally {
+      setLoadingBrands(false);
+    }
+  };
 
   const form = useForm({
     initialValues: initialData || initialValues,
@@ -101,7 +130,29 @@ export function CRUDModal({
                   {field.required && <span className="text-red-500 ml-1">*</span>}
                 </Label>
 
-                {field.type === 'textarea' ? (
+                {field.type === 'select' ? (
+                  <select
+                    id={field.name}
+                    name={field.name}
+                    value={form.values[field.name as keyof typeof form.values] || ''}
+                    onChange={(e) =>
+                      form.setFieldValue(field.name, e.target.value)
+                    }
+                    onBlur={form.handleBlur}
+                    disabled={loadingBrands}
+                    className={`w-full px-3 py-2 border rounded-md text-sm bg-white
+                      focus:outline-none focus:ring-2 focus:ring-primary
+                      ${hasError ? 'border-red-500' : 'border-gray-300'}
+                    `}
+                  >
+                    <option value="">-- Selecciona una marca --</option>
+                    {brandOptions.map(option => (
+                      <option key={option.id} value={option.id}>
+                        {option.nombre}
+                      </option>
+                    ))}
+                  </select>
+                ) : field.type === 'textarea' ? (
                   <textarea
                     id={field.name}
                     name={field.name}
@@ -145,12 +196,12 @@ export function CRUDModal({
               type="button"
               variant="outline"
               onClick={() => handleOpenChange(false)}
-              disabled={loading}
+              disabled={loading || loadingBrands}
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            <Button type="submit" disabled={loading || loadingBrands}>
+              {(loading || loadingBrands) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Guardar
             </Button>
           </DialogFooter>
