@@ -119,6 +119,144 @@ INSERT INTO VEHICULO VALUES (
 
 COMMIT;
 
+
+-- =====================================================
+-- SECCIÓN 3: SELECT - CONSULTAS ÚTILES DEL NEGOCIO
+-- =====================================================
+
+-- Ver todos los usuarios ordenados por fecha de creacion
+SELECT
+    DOCUMENTO_USU,
+    NOMBRES_USU,
+    PRIMER_APELLIDO_USU,
+    CORREO_USU,
+    SALDO_CARTERA_USU,
+    FECHA_CREACION_USU
+FROM USUARIO
+ORDER BY FECHA_CREACION_USU DESC;
+
+-- Ver todos los perfiles disponibles ordenados por nombre
+SELECT
+    ID_PER,
+    NOMBRE_PER,
+    DESCRIPCION_PER
+FROM PERFIL
+ORDER BY NOMBRE_PER ASC;
+
+-- Ver rutas con sus cupos y precio, ordenadas de mas barato a mas caro
+SELECT
+    ID_RUT,
+    HORA_SALIDA_RUT,
+    CUPOS_TOTALES_RUT,
+    CUPOS_DISPONIBLES_RUT,
+    PRECIO_CUPO_RUT,
+    DISTANCIA_KM_RUT
+FROM RUTA
+WHERE CUPOS_DISPONIBLES_RUT > 0
+ORDER BY PRECIO_CUPO_RUT ASC;
+
+-- Contar solicitudes agrupadas por estado
+SELECT
+    ID_ESO_SOL,
+    COUNT(*) AS TOTAL_SOLICITUDES,
+    SUM(MONTO_SOL) AS MONTO_TOTAL
+FROM SOLICITUD_CUPO
+GROUP BY ID_ESO_SOL
+ORDER BY TOTAL_SOLICITUDES DESC;
+
+-- Ver historial de viajes de un usuario especifico ordenado por fecha
+SELECT
+    ID_HIS,
+    ROL_VIAJE_HIS,
+    FECHA_VIAJE_HIS,
+    RUT_ID_HIS
+FROM HISTORIAL_VIAJE
+WHERE DOCUMENTO_USU_HIS = '1234567890'
+ORDER BY FECHA_VIAJE_HIS DESC;
+
+-- Ver calificaciones recibidas por un usuario con su promedio
+SELECT
+    DOCUMENTO_CALIFICADO_CAL,
+    COUNT(*)            AS TOTAL_CALIFICACIONES,
+    ROUND(AVG(PUNTAJE_CAL), 1) AS PROMEDIO,
+    MIN(PUNTAJE_CAL)    AS PUNTAJE_MINIMO,
+    MAX(PUNTAJE_CAL)    AS PUNTAJE_MAXIMO
+FROM CALIFICACION
+WHERE DOCUMENTO_CALIFICADO_CAL = '0987654321'
+GROUP BY DOCUMENTO_CALIFICADO_CAL;
+
+-- Ver transacciones de cartera de un usuario ordenadas por fecha
+SELECT
+    ID_TRA,
+    ID_TTR_TRA,
+    MONTO_TRA,
+    SALDO_RESULTANTE_TRA,
+    FECHA_REALIZACION_TRA
+FROM TRANSACCIONES_CARTERA
+WHERE DOCUMENTO_USU_TRA = '1234567890'
+ORDER BY FECHA_REALIZACION_TRA DESC;
+
+
+-- =====================================================
+-- SECCIÓN 4: UPDATE - ACTUALIZACIONES COMUNES
+-- =====================================================
+
+-- Actualizar foto de perfil de un usuario
+UPDATE USUARIO
+SET FOTO_URL_USU = 'https://storage/fotos/davison_nuevo.jpg'
+WHERE DOCUMENTO_USU = '1234567890';
+
+-- Actualizar saldo de cartera al hacer una recarga
+UPDATE USUARIO
+SET SALDO_CARTERA_USU = SALDO_CARTERA_USU + 30000
+WHERE DOCUMENTO_USU = '1234567890';
+
+-- Cambiar estado de una ruta a EN_CURSO
+UPDATE RUTA
+SET ID_EST_RUT = (SELECT ID_ERU FROM ESTADO_RUTA WHERE NOMBRE_ERU = 'EN_CURSO'),
+    UPDATED_AT_RUT = SYSDATE
+WHERE ID_RUT = 1;
+
+-- Aceptar una solicitud de cupo
+UPDATE SOLICITUD_CUPO
+SET ID_ESO_SOL = (SELECT ID_ESO FROM ESTADO_SOLICITUD WHERE NOMBRE_ESO = 'ACEPTADA')
+WHERE ID_SOL = 1;
+
+-- Actualizar cupos disponibles al aceptar un pasajero
+UPDATE RUTA
+SET CUPOS_DISPONIBLES_RUT = CUPOS_DISPONIBLES_RUT - 1,
+    UPDATED_AT_RUT = SYSDATE
+WHERE ID_RUT = 1;
+
+-- Suspender un usuario
+UPDATE USUARIO
+SET ID_EST_USU = (SELECT ID_EUS FROM ESTADO_USUARIO WHERE NOMBRE_EUS = 'SUSPENDIDO')
+WHERE DOCUMENTO_USU = '1234567890';
+
+COMMIT;
+
+
+-- =====================================================
+-- SECCIÓN 5: DELETE - ELIMINACIONES
+-- =====================================================
+
+-- Cancelar una solicitud (cambio de estado, no se borra el registro)
+UPDATE SOLICITUD_CUPO
+SET ID_ESO_SOL = (SELECT ID_ESO FROM ESTADO_SOLICITUD WHERE NOMBRE_ESO = 'CANCELADA')
+WHERE ID_SOL = 1;
+
+-- Eliminar códigos de verificación ya usados y expirados (limpieza periódica)
+DELETE FROM VERIFICACION_CORREO
+WHERE USADO_VER = 'S'
+AND FECHA_EXPIRACION_VER < SYSDATE;
+
+-- Eliminar un vehículo inactivo sin rutas asociadas
+DELETE FROM VEHICULO
+WHERE ID_EST_VEH = (SELECT ID_EVE FROM ESTADO_VEHICULO WHERE NOMBRE_EVE = 'INACTIVO')
+AND ID_VEH NOT IN (SELECT DISTINCT ID_VEH_RUT FROM RUTA);
+
+COMMIT;
+
 prompt =====================================================
-prompt Modulo 4 ejecutado: DML (solo INSERTs) - VamonosPues
+prompt Modulo 4 ejecutado: DML - VamonosPues
 prompt =====================================================

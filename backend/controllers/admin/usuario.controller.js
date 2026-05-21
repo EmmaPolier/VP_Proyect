@@ -1,68 +1,102 @@
-/**
- * Controller para gestión de USUARIOS
- * Tabla: USUARIO
- * Relación: USUARIO_PERFIL (N:M con PERFIL)
- */
-
+import bcryptjs from 'bcryptjs';
 import { getConnection } from '../../db.js';
 import { successResponse, errorResponse, paginatedResponse } from '../../utils/response.js';
-import { validateUsuario, validatePassword } from '../../utils/validators.js';
-import bcrypt from 'bcrypt';
+import { validateUsuario } from '../../utils/validators.js';
 
-// GET all usuarios with pagination
+function normalizeDate(value) {
+  if (!value) return null;
+  if (typeof value !== 'string') return null;
+  const parts = value.split('/');
+  if (parts.length === 3) {
+    const [day, month, year] = parts;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  return value;
+}
+
 export async function getAllUsuarios(req, res) {
-  const page = parseInt(req.query.page) || 1;
-  const pageSize = parseInt(req.query.pageSize) || 10;
+  const page = parseInt(req.query.page, 10) || 1;
+  const pageSize = parseInt(req.query.pageSize, 10) || 10;
   const offset = (page - 1) * pageSize;
 
   let connection;
   try {
     connection = await getConnection();
 
-    // Obtener total
-    const totalResult = await connection.execute(
-      'SELECT COUNT(*) as total FROM USUARIO'
-    );
+    const totalResult = await connection.execute('SELECT COUNT(*) as total FROM USUARIO');
     const total = totalResult.rows[0][0];
 
-    // Obtener usuarios con paginación
     const result = await connection.execute(
-      `SELECT ID_USU, NOMBRE_USU, EMAIL_USU, TELEFONO_USU, ID_EST, FECHA_CREACION_USU 
-       FROM USUARIO 
-       ORDER BY ID_USU
+      `SELECT
+         u.DOCUMENTO_USU,
+         u.NOMBRES_USU,
+         u.PRIMER_APELLIDO_USU,
+         u.SEGUNDO_APELLIDO_USU,
+         u.CORREO_USU,
+         u.NUMERO_TELEFONO_USU,
+         TO_CHAR(u.FECHA_NACIMIENTO_USU, 'YYYY-MM-DD'),
+         u.ID_EST_USU,
+         e.NOMBRE_EUS,
+         p.ID_PER,
+         p.NOMBRE_PER
+       FROM USUARIO u
+       LEFT JOIN USUARIO_PERFIL up ON up.DOCUMENTO_USU_UPE = u.DOCUMENTO_USU
+       LEFT JOIN PERFIL p ON p.ID_PER = up.ID_PER_UPE
+       LEFT JOIN ESTADO_USUARIO e ON e.ID_EUS = u.ID_EST_USU
+       ORDER BY u.DOCUMENTO_USU
        OFFSET :offset ROWS FETCH NEXT :pageSize ROWS ONLY`,
       { offset, pageSize }
     );
 
-    const data = result.rows.map(row => ({
+    const data = result.rows.map((row) => ({
       id: row[0],
-      nombre: row[1],
-      email: row[2],
-      telefono: row[3],
-      idEstado: row[4],
-      fechaCreacion: row[5]
+      documento: row[0],
+      nombres: row[1],
+      primerApellido: row[2],
+      segundoApellido: row[3],
+      email: row[4],
+      telefono: row[5],
+      fechaNacimiento: row[6],
+      idEstado: row[7],
+      estado: row[8],
+      idPerfil: row[9],
+      perfil: row[10],
     }));
 
     paginatedResponse(res, data, page, pageSize, total, 'Usuarios obtenidos exitosamente');
   } catch (error) {
     errorResponse(res, error, 'Error al obtener usuarios', 500);
   } finally {
-    if (connection) await connection.close();
+    if (connection) await connection?.close();
   }
 }
 
-// GET usuario by ID con perfiles
 export async function getUsuarioById(req, res) {
-  const { id } = req.params;
-
+  const { documento } = req.params;
   let connection;
+
   try {
     connection = await getConnection();
-    
+
     const result = await connection.execute(
-      `SELECT ID_USU, NOMBRE_USU, EMAIL_USU, TELEFONO_USU, ID_EST, FECHA_CREACION_USU 
-       FROM USUARIO WHERE ID_USU = :id`,
-      { id }
+      `SELECT
+         u.DOCUMENTO_USU,
+         u.NOMBRES_USU,
+         u.PRIMER_APELLIDO_USU,
+         u.SEGUNDO_APELLIDO_USU,
+         u.CORREO_USU,
+         u.NUMERO_TELEFONO_USU,
+         TO_CHAR(u.FECHA_NACIMIENTO_USU, 'YYYY-MM-DD'),
+         u.ID_EST_USU,
+         e.NOMBRE_EUS,
+         p.ID_PER,
+         p.NOMBRE_PER
+       FROM USUARIO u
+       LEFT JOIN USUARIO_PERFIL up ON up.DOCUMENTO_USU_UPE = u.DOCUMENTO_USU
+       LEFT JOIN PERFIL p ON p.ID_PER = up.ID_PER_UPE
+       LEFT JOIN ESTADO_USUARIO e ON e.ID_EUS = u.ID_EST_USU
+       WHERE u.DOCUMENTO_USU = :documento`,
+      { documento }
     );
 
     if (result.rows.length === 0) {
@@ -70,279 +104,294 @@ export async function getUsuarioById(req, res) {
     }
 
     const row = result.rows[0];
-    const usuario = {
+    const data = {
       id: row[0],
-      nombre: row[1],
-      email: row[2],
-      telefono: row[3],
-      idEstado: row[4],
-      fechaCreacion: row[5]
+      documento: row[0],
+      nombres: row[1],
+      primerApellido: row[2],
+      segundoApellido: row[3],
+      email: row[4],
+      telefono: row[5],
+      fechaNacimiento: row[6],
+      idEstado: row[7],
+      estado: row[8],
+      idPerfil: row[9],
+      perfil: row[10],
     };
 
-    // Obtener perfiles/roles del usuario
-    const perfilesResult = await connection.execute(
-      `SELECT ID_PER, NOMBRE_PER FROM PERFIL 
-       WHERE ID_PER IN (SELECT ID_PER FROM USUARIO_PERFIL WHERE ID_USU = :id)`,
-      { id }
-    );
-
-    usuario.perfiles = perfilesResult.rows.map(row => ({
-      id: row[0],
-      nombre: row[1]
-    }));
-
-    successResponse(res, usuario, 'Usuario obtenido exitosamente');
+    successResponse(res, data, 'Usuario obtenido exitosamente');
   } catch (error) {
     errorResponse(res, error, 'Error al obtener usuario', 500);
   } finally {
-    if (connection) await connection.close();
+    if (connection) await connection?.close();
   }
 }
 
-// CREATE usuario
 export async function createUsuario(req, res) {
-  const { nombre, email, telefono, contraseña, idEstado, perfiles } = req.body;
+  const {
+    documento,
+    nombres,
+    primerApellido,
+    segundoApellido,
+    email,
+    telefono,
+    fechaNacimiento,
+    contrasena,
+    idEstado,
+    idPerfil,
+  } = req.body;
 
-  // Validar datos
   const validation = validateUsuario({
-    NOMBRE_USU: nombre,
-    EMAIL_USU: email,
-    TELEFONO_USU: telefono,
-    ID_EST: idEstado
+    DOCUMENTO_USU: documento,
+    NOMBRES_USU: nombres,
+    PRIMER_APELLIDO_USU: primerApellido,
+    SEGUNDO_APELLIDO_USU: segundoApellido,
+    CORREO_USU: email,
+    NUMERO_TELEFONO_USU: telefono,
+    FECHA_NACIMIENTO_USU: fechaNacimiento,
+    CONTRASENA_USU: contrasena,
+    ID_EST_USU: idEstado,
+    ID_PER_UPE: idPerfil,
   });
 
   if (!validation.valid) {
     return errorResponse(res, null, validation.error, 400);
   }
 
-  // Validar contraseña
-  const passwordValidation = validatePassword(contraseña);
-  if (!passwordValidation.valid) {
-    return errorResponse(res, null, passwordValidation.error, 400);
-  }
-
   let connection;
   try {
     connection = await getConnection();
 
-    // Verificar si email ya existe
-    const checkResult = await connection.execute(
-      `SELECT COUNT(*) as count FROM USUARIO WHERE EMAIL_USU = :email`,
-      { email }
+    const existing = await connection.execute(
+      `SELECT COUNT(*) as count FROM USUARIO WHERE DOCUMENTO_USU = :documento OR CORREO_USU = :email OR NUMERO_TELEFONO_USU = :telefono`,
+      { documento, email, telefono }
     );
 
-    if (checkResult.rows[0][0] > 0) {
-      return errorResponse(res, null, 'El email ya está registrado', 409);
+    if (existing.rows[0][0] > 0) {
+      return errorResponse(res, null, 'Ya existe un usuario con el mismo documento, email o teléfono', 409);
     }
 
-    // Verificar estado
-    const estadoCheck = await connection.execute(
-      `SELECT COUNT(*) as count FROM ESTADO WHERE ID_EST = :idEstado`,
-      { idEstado }
-    );
+    const hash = await bcryptjs.hash(contrasena, 10);
+    const birthDate = normalizeDate(fechaNacimiento) || '2000-01-01';
 
-    if (estadoCheck.rows[0][0] === 0) {
-      return errorResponse(res, null, 'El estado no existe', 400);
-    }
-
-    // Hash contraseña
-    const hashedPassword = await bcrypt.hash(contraseña, 10);
-
-    // Insertar usuario
     await connection.execute(
-      `INSERT INTO USUARIO (ID_USU, NOMBRE_USU, EMAIL_USU, TELEFONO_USU, CONTRASEÑA_USU, ID_EST, FECHA_CREACION_USU)
-       VALUES (SEQ_USUARIO.NEXTVAL, :nombre, :email, :telefono, :contraseña, :idEstado, SYSDATE)`,
-      { nombre, email, telefono, contraseña: hashedPassword, idEstado }
-    );
-
-    // Obtener ID del usuario creado
-    const idResult = await connection.execute(
-      `SELECT ID_USU FROM USUARIO WHERE EMAIL_USU = :email`,
-      { email }
-    );
-
-    const usuarioId = idResult.rows[0][0];
-
-    // Asignar perfiles si se proporcionan
-    if (perfiles && Array.isArray(perfiles) && perfiles.length > 0) {
-      for (const perfilId of perfiles) {
-        await connection.execute(
-          `INSERT INTO USUARIO_PERFIL (ID_USU, ID_PER, CALIFICACION_UPE)
-           VALUES (:usuarioId, :perfilId, 5.0)`,
-          { usuarioId, perfilId }
-        );
+      `INSERT INTO USUARIO (
+         DOCUMENTO_USU,
+         NOMBRES_USU,
+         PRIMER_APELLIDO_USU,
+         SEGUNDO_APELLIDO_USU,
+         CORREO_USU,
+         NUMERO_TELEFONO_USU,
+         FECHA_NACIMIENTO_USU,
+         CONTRASENA_USU,
+         FOTO_URL_USU,
+         SALDO_CARTERA_USU,
+         FECHA_CREACION_USU,
+         ID_EST_USU
+       ) VALUES (
+         :documento,
+         :nombres,
+         :primerApellido,
+         :segundoApellido,
+         :email,
+         :telefono,
+         TO_DATE(:birthDate, 'YYYY-MM-DD'),
+         :hash,
+         'https://storage/fotos/default.jpg',
+         0,
+         SYSDATE,
+         :idEstado
+       )`,
+      {
+        documento,
+        nombres,
+        primerApellido,
+        segundoApellido,
+        email,
+        telefono,
+        birthDate,
+        hash,
+        idEstado,
       }
-    }
+    );
 
-    successResponse(res, { id: usuarioId, nombre, email, telefono }, 'Usuario creado exitosamente', 201);
+    await connection.execute(
+      `INSERT INTO USUARIO_PERFIL (
+         ID_UPE,
+         DOCUMENTO_USU_UPE,
+         ID_PER_UPE,
+         CALIFICACION_UPE,
+         FECHA_ASIGNACION_UPE
+       ) VALUES (
+         SEQ_USUARIO_PERFIL.NEXTVAL,
+         :documento,
+         :idPerfil,
+         5.0,
+         SYSDATE
+       )`,
+      { documento, idPerfil }
+    );
+
+    successResponse(res, { documento, email, nombres, primerApellido, idEstado, idPerfil }, 'Usuario creado exitosamente', 201);
   } catch (error) {
     errorResponse(res, error, 'Error al crear usuario', 500);
   } finally {
-    if (connection) await connection.close();
+    if (connection) await connection?.close();
   }
 }
 
-// UPDATE usuario
 export async function updateUsuario(req, res) {
-  const { id } = req.params;
-  const { nombre, email, telefono, idEstado, perfiles } = req.body;
+  const { documento } = req.params;
+  const {
+    nombres,
+    primerApellido,
+    segundoApellido,
+    email,
+    telefono,
+    fechaNacimiento,
+    contrasena,
+    idEstado,
+    idPerfil,
+  } = req.body;
 
-  // Validar datos
   const validation = validateUsuario({
-    NOMBRE_USU: nombre,
-    EMAIL_USU: email,
-    TELEFONO_USU: telefono,
-    ID_EST: idEstado
-  });
+    DOCUMENTO_USU: documento,
+    NOMBRES_USU: nombres,
+    PRIMER_APELLIDO_USU: primerApellido,
+    SEGUNDO_APELLIDO_USU: segundoApellido,
+    CORREO_USU: email,
+    NUMERO_TELEFONO_USU: telefono,
+    FECHA_NACIMIENTO_USU: fechaNacimiento,
+    CONTRASENA_USU: contrasena,
+    ID_EST_USU: idEstado,
+    ID_PER_UPE: idPerfil,
+  }, true);
 
   if (!validation.valid) {
     return errorResponse(res, null, validation.error, 400);
   }
 
   let connection;
+
   try {
     connection = await getConnection();
 
-    // Verificar si existe
-    const checkResult = await connection.execute(
-      `SELECT COUNT(*) as count FROM USUARIO WHERE ID_USU = :id`,
-      { id }
+    const existingUser = await connection.execute(
+      'SELECT COUNT(*) as count FROM USUARIO WHERE DOCUMENTO_USU = :documento',
+      { documento }
     );
 
-    if (checkResult.rows[0][0] === 0) {
+    if (existingUser.rows[0][0] === 0) {
       return errorResponse(res, null, 'Usuario no encontrado', 404);
     }
 
-    // Verificar email único (solo si es diferente)
-    const emailCheck = await connection.execute(
-      `SELECT COUNT(*) as count FROM USUARIO WHERE EMAIL_USU = :email AND ID_USU != :id`,
-      { email, id }
-    );
+    const updateFields = [];
+    const params = { documento };
 
-    if (emailCheck.rows[0][0] > 0) {
-      return errorResponse(res, null, 'El email ya está en uso', 409);
+    if (nombres) {
+      updateFields.push('NOMBRES_USU = :nombres');
+      params.nombres = nombres;
+    }
+    if (primerApellido) {
+      updateFields.push('PRIMER_APELLIDO_USU = :primerApellido');
+      params.primerApellido = primerApellido;
+    }
+    if (segundoApellido) {
+      updateFields.push('SEGUNDO_APELLIDO_USU = :segundoApellido');
+      params.segundoApellido = segundoApellido;
+    }
+    if (email) {
+      updateFields.push('CORREO_USU = :email');
+      params.email = email;
+    }
+    if (telefono) {
+      updateFields.push('NUMERO_TELEFONO_USU = :telefono');
+      params.telefono = telefono;
+    }
+    if (fechaNacimiento) {
+      updateFields.push('FECHA_NACIMIENTO_USU = TO_DATE(:birthDate, \'YYYY-MM-DD\')');
+      params.birthDate = normalizeDate(fechaNacimiento);
+    }
+    if (contrasena) {
+      const hash = await bcryptjs.hash(contrasena, 10);
+      updateFields.push('CONTRASENA_USU = :hash');
+      params.hash = hash;
+    }
+    if (typeof idEstado !== 'undefined') {
+      updateFields.push('ID_EST_USU = :idEstado');
+      params.idEstado = idEstado;
     }
 
-    // Actualizar usuario
-    await connection.execute(
-      `UPDATE USUARIO SET NOMBRE_USU = :nombre, EMAIL_USU = :email, TELEFONO_USU = :telefono, ID_EST = :idEstado
-       WHERE ID_USU = :id`,
-      { nombre, email, telefono, idEstado, id }
-    );
-
-    // Actualizar perfiles si se proporcionan
-    if (perfiles && Array.isArray(perfiles)) {
-      // Eliminar perfiles actuales
+    if (updateFields.length > 0) {
       await connection.execute(
-        `DELETE FROM USUARIO_PERFIL WHERE ID_USU = :id`,
-        { id }
+        `UPDATE USUARIO SET ${updateFields.join(', ')} WHERE DOCUMENTO_USU = :documento`,
+        params
+      );
+    }
+
+    if (typeof idPerfil !== 'undefined') {
+      const profileUpdate = await connection.execute(
+        `UPDATE USUARIO_PERFIL SET ID_PER_UPE = :idPerfil WHERE DOCUMENTO_USU_UPE = :documento`,
+        { idPerfil, documento }
       );
 
-      // Insertar nuevos perfiles
-      for (const perfilId of perfiles) {
+      if (profileUpdate.rowsAffected === 0) {
         await connection.execute(
-          `INSERT INTO USUARIO_PERFIL (ID_USU, ID_PER, CALIFICACION_UPE)
-           VALUES (:id, :perfilId, 5.0)`,
-          { id, perfilId }
+          `INSERT INTO USUARIO_PERFIL (
+             ID_UPE,
+             DOCUMENTO_USU_UPE,
+             ID_PER_UPE,
+             CALIFICACION_UPE,
+             FECHA_ASIGNACION_UPE
+           ) VALUES (
+             SEQ_USUARIO_PERFIL.NEXTVAL,
+             :documento,
+             :idPerfil,
+             5.0,
+             SYSDATE
+           )`,
+          { documento, idPerfil }
         );
       }
     }
 
-    successResponse(res, { id, nombre, email, telefono }, 'Usuario actualizado exitosamente');
+    successResponse(res, { documento, email, nombres, primerApellido, idEstado, idPerfil }, 'Usuario actualizado exitosamente');
   } catch (error) {
     errorResponse(res, error, 'Error al actualizar usuario', 500);
   } finally {
-    if (connection) await connection.close();
+    if (connection) await connection?.close();
   }
 }
 
-// DELETE usuario
 export async function deleteUsuario(req, res) {
-  const { id } = req.params;
+  const { documento } = req.params;
 
   let connection;
   try {
     connection = await getConnection();
 
-    // Verificar si existe
-    const checkResult = await connection.execute(
-      `SELECT COUNT(*) as count FROM USUARIO WHERE ID_USU = :id`,
-      { id }
+    const userCheck = await connection.execute(
+      'SELECT COUNT(*) as count FROM USUARIO WHERE DOCUMENTO_USU = :documento',
+      { documento }
     );
 
-    if (checkResult.rows[0][0] === 0) {
+    if (userCheck.rows[0][0] === 0) {
       return errorResponse(res, null, 'Usuario no encontrado', 404);
     }
 
-    // Eliminar perfiles asociados
     await connection.execute(
-      `DELETE FROM USUARIO_PERFIL WHERE ID_USU = :id`,
-      { id }
+      'DELETE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento',
+      { documento }
+    );
+    await connection.execute(
+      'DELETE FROM USUARIO WHERE DOCUMENTO_USU = :documento',
+      { documento }
     );
 
-    // Eliminar usuario
-    await connection.execute(
-      `DELETE FROM USUARIO WHERE ID_USU = :id`,
-      { id }
-    );
-
-    successResponse(res, { id }, 'Usuario eliminado exitosamente');
+    successResponse(res, { documento }, 'Usuario eliminado exitosamente');
   } catch (error) {
     errorResponse(res, error, 'Error al eliminar usuario', 500);
   } finally {
-    if (connection) await connection.close();
-  }
-}
-
-// CHANGE PASSWORD
-export async function changePassword(req, res) {
-  const { id } = req.params;
-  const { contraseñaActual, contraseñaNueva } = req.body;
-
-  if (!contraseñaActual || !contraseñaNueva) {
-    return errorResponse(res, null, 'Se requieren contraseña actual y nueva', 400);
-  }
-
-  const passwordValidation = validatePassword(contraseñaNueva);
-  if (!passwordValidation.valid) {
-    return errorResponse(res, null, passwordValidation.error, 400);
-  }
-
-  let connection;
-  try {
-    connection = await getConnection();
-
-    // Obtener usuario
-    const result = await connection.execute(
-      `SELECT CONTRASEÑA_USU FROM USUARIO WHERE ID_USU = :id`,
-      { id }
-    );
-
-    if (result.rows.length === 0) {
-      return errorResponse(res, null, 'Usuario no encontrado', 404);
-    }
-
-    const hashedPasswordDB = result.rows[0][0];
-
-    // Verificar contraseña actual
-    const isValid = await bcrypt.compare(contraseñaActual, hashedPasswordDB);
-    if (!isValid) {
-      return errorResponse(res, null, 'Contraseña actual incorrecta', 401);
-    }
-
-    // Hash nueva contraseña
-    const hashedPassword = await bcrypt.hash(contraseñaNueva, 10);
-
-    // Actualizar
-    await connection.execute(
-      `UPDATE USUARIO SET CONTRASEÑA_USU = :contraseña WHERE ID_USU = :id`,
-      { contraseña: hashedPassword, id }
-    );
-
-    successResponse(res, { id }, 'Contraseña actualizada exitosamente');
-  } catch (error) {
-    errorResponse(res, error, 'Error al cambiar contraseña', 500);
-  } finally {
-    if (connection) await connection.close();
+    if (connection) await connection?.close();
   }
 }

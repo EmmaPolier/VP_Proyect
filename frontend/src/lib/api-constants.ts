@@ -13,6 +13,8 @@ export const API_ENDPOINTS = {
   ESTADOS: (tipo: string) => `${API_BASE_URL}/api/admin/catalogs/estados/${tipo}`,
   METODOS_PAGO: `${API_BASE_URL}/api/admin/catalogs/metodos-pago`,
   TIPOS_TRANSACCION: `${API_BASE_URL}/api/admin/catalogs/tipos-transaccion`,
+  USUARIOS: `${API_BASE_URL}/api/admin/usuarios`,
+  VEHICULOS: `${API_BASE_URL}/api/admin/vehiculos`,
 };
 
 export const ESTADO_TIPOS = {
@@ -51,8 +53,16 @@ export const CATALOG_CONFIG = {
   estados: {
     label: 'Estados',
     icon: '⚡',
-    endpoint: API_ENDPOINTS.ESTADOS('usuario'),
+    endpoint: API_ENDPOINTS.ESTADOS,
     fields: ['nombre', 'descripcion'],
+    tipoOptions: [
+      { label: 'Usuario', value: ESTADO_TIPOS.USUARIO },
+      { label: 'Vehículo', value: ESTADO_TIPOS.VEHICULO },
+      { label: 'Ruta', value: ESTADO_TIPOS.RUTA },
+      { label: 'Solicitud', value: ESTADO_TIPOS.SOLICITUD },
+      { label: 'Cupo ruta', value: ESTADO_TIPOS.CUPO },
+    ],
+    defaultTipo: ESTADO_TIPOS.USUARIO,
   },
   'metodos-pago': {
     label: 'Métodos de Pago',
@@ -65,6 +75,58 @@ export const CATALOG_CONFIG = {
     icon: '💸',
     endpoint: API_ENDPOINTS.TIPOS_TRANSACCION,
     fields: ['nombre', 'descripcion'],
+  },
+  usuarios: {
+    label: 'Usuarios',
+    icon: '👥',
+    endpoint: API_ENDPOINTS.USUARIOS,
+    fields: ['documento', 'nombres', 'primerApellido', 'email', 'telefono', 'perfil', 'estado'],
+    formFields: [
+      'documento',
+      'nombres',
+      'primerApellido',
+      'segundoApellido',
+      'email',
+      'telefono',
+      'fechaNacimiento',
+      'idPerfil',
+      'idEstado',
+      'contrasena',
+    ],
+    fieldTypes: {
+      fechaNacimiento: 'date',
+      idPerfil: 'number',
+      idEstado: 'number',
+      contrasena: 'password',
+    },
+    requiredFields: ['documento', 'nombres', 'primerApellido', 'email', 'telefono', 'fechaNacimiento', 'idPerfil', 'idEstado'],
+  },
+  vehiculos: {
+    label: 'Vehículos',
+    icon: '🚗',
+    endpoint: API_ENDPOINTS.VEHICULOS,
+    fields: ['placa', 'marca', 'modelo', 'color', 'estado', 'documentoUsuario', 'fechaRegistro'],
+    formFields: [
+      'placa',
+      'documentoUsuario',
+      'idMarca',
+      'idModelo',
+      'idColor',
+      'idEstado',
+      'fechaRegistro',
+      'soatUrl',
+      'licenciaUrl',
+      'tarjetaUrl',
+      'vehiculoUrl',
+    ],
+    fieldTypes: {
+      idMarca: 'number',
+      idModelo: 'number',
+      idColor: 'number',
+      idEstado: 'number',
+      fechaRegistro: 'date',
+    },
+    requiredFields: ['placa', 'documentoUsuario', 'idMarca', 'idModelo', 'idColor', 'idEstado', 'soatUrl', 'licenciaUrl', 'tarjetaUrl', 'vehiculoUrl'],
   },
 };
 

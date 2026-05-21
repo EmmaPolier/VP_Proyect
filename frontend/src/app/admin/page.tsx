@@ -83,7 +83,7 @@ export default function AdminDashboard() {
           {Object.entries(CATALOG_CONFIG).map(([key, config]) => (
             <Link
               key={key}
-              href={`/admin/catalogos/${key}`}
+              href={`/admin/catalogs/${key}`}
               className="no-underline"
             >
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">

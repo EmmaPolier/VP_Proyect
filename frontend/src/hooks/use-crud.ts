@@ -28,14 +28,14 @@ interface UseCrudReturn<T> {
   // Acciones
   fetchItems: (page?: number) => Promise<void>;
   createItem: (data: Omit<T, 'id'>) => Promise<T | null>;
-  updateItem: (id: number, data: Partial<T>) => Promise<T | null>;
-  deleteItem: (id: number) => Promise<boolean>;
+  updateItem: (id: string | number, data: Partial<T>) => Promise<T | null>;
+  deleteItem: (id: string | number) => Promise<boolean>;
   setPage: (page: number) => Promise<void>;
   refresh: () => Promise<void>;
   reset: () => void;
 }
 
-export function useCrud<T extends { id?: number }>(
+export function useCrud<T extends { id?: string | number }>(
   endpoint: string,
   options?: CrudOptions
 ): UseCrudReturn<T> {
@@ -121,7 +121,7 @@ export function useCrud<T extends { id?: number }>(
   );
 
   const updateItem = useCallback(
-    async (id: number, data: Partial<T>) => {
+    async (id: string | number, data: Partial<T>) => {
       setLoading(true);
       setError(null);
 
@@ -148,7 +148,7 @@ export function useCrud<T extends { id?: number }>(
   );
 
   const deleteItem = useCallback(
-    async (id: number) => {
+    async (id: string | number) => {
       setLoading(true);
       setError(null);
 
