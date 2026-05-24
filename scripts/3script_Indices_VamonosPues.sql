@@ -72,28 +72,6 @@ CREATE INDEX IDX_HISTORIAL_USUARIO
     TABLESPACE TS_VamonosPues;
 
 
--- =====================================================
--- TABLA: CALIFICACION
--- =====================================================
-
--- IDX: DOCUMENTO_CALIFICADO_CAL
--- Por qué: Para calcular el promedio de calificaciones de un usuario
---          (conductor o pasajero) se filtra por este campo. Es la
---          columna usada en el UPDATE de USUARIO_PERFIL.CALIFICACION_UPE
---          y en la vista de perfil público.
-CREATE INDEX IDX_CALIFICACION_CALIFICADO
-    ON CALIFICACION (DOCUMENTO_CALIFICADO_CAL)
-    TABLESPACE TS_VamonosPues;
-
--- IDX: DOCUMENTO_CALIFICADOR_CAL
--- Por qué: Permite verificar si un usuario ya calificó un viaje
---          específico (evitar doble calificación). Consulta frecuente
---          en la lógica de negocio al finalizar un viaje.
-CREATE INDEX IDX_CALIFICACION_CALIFICADOR
-    ON CALIFICACION (DOCUMENTO_CALIFICADOR_CAL)
-    TABLESPACE TS_VamonosPues;
-
-
 prompt =====================================================
 prompt Módulo 3 ejecutado: Índices - VamonosPues
 prompt =====================================================
