@@ -54,3 +54,18 @@ export async function sendVerificationEmail(to, link) {
     throw error;
   }
 }
+
+export async function sendNotificationEmail(to, subject, html) {
+  try {
+    await transporter.sendMail({
+      from: `"VamonosPues" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      html,
+    });
+    console.log(`[OK] Notificación enviada a ${to}`);
+  } catch (error) {
+    console.error('[ERROR] Error enviando notificación:', error);
+    throw error;
+  }
+}

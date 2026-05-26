@@ -28,14 +28,34 @@ interface FetchOptions extends RequestInit {
 class ApiClient {
   private timeout = 5000;
 
+  private getAuthToken(): string | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    try {
+      const stored = window.localStorage.getItem('currentUser')
+      if (!stored) {
+        return null
+      }
+
+      const parsed = JSON.parse(stored)
+      return parsed?.token ?? null
+    } catch {
+      return null
+    }
+  }
+
   async fetch<T>(
     url: string,
     options?: FetchOptions
   ): Promise<ApiResponse<T>> {
-    const { timeout = this.timeout, ...fetchOptions } = options || {};
+    const { timeout = this.timeout, ...fetchOptions } = options || {}
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+    const token = this.getAuthToken()
 
     try {
       const response = await fetch(url, {
@@ -43,6 +63,7 @@ class ApiClient {
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...fetchOptions?.headers,
         },
       });
@@ -76,17 +97,17 @@ class ApiClient {
     });
   }
 
-  async post<T>(url: string, body: any) {
+  async post<T>(url: string, body?: any) {
     return this.fetch<T>(url, {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   }
 
-  async put<T>(url: string, body: any) {
+  async put<T>(url: string, body?: any) {
     return this.fetch<T>(url, {
       method: 'PUT',
-      body: JSON.stringify(body),
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   }
 

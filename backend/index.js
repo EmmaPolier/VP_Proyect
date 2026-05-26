@@ -8,6 +8,9 @@ import { register, verify, login } from './controllers/auth.controller.js';
 import menuRoutes from './routes/menu.routes.js';
 import vehicleRoutes from './routes/vehicle.routes.js';
 import adminRoutes from './routes/admin/index.js';
+import routeRoutes from './routes/route.routes.js';
+import carteraRoutes from './routes/cartera.routes.js';
+import calificacionRoutes from './routes/calificacion.routes.js';
 
 dotenv.config();
 
@@ -42,6 +45,9 @@ app.use('/vehicles', vehicleRoutes);
 
 // Rutas de administración
 app.use('/api/admin', adminRoutes);
+app.use('/api/routes', routeRoutes);
+app.use('/api/cartera', carteraRoutes);
+app.use('/api/calificaciones', calificacionRoutes);
 
 // ============================================================================
 // HEALTH CHECK

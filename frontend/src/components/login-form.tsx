@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import axios from "axios"
 import { cn } from "@/lib/utils"
+import { API_BASE_URL } from "@/lib/api-constants"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -20,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
+const API_URL = API_BASE_URL
 
 export function LoginForm({
   className,
@@ -51,6 +52,7 @@ export function LoginForm({
           nombres: response.data.nombres,
           documento: response.data.documento,
           id_perfil: response.data.id_perfil,
+          token: response.data.token,
           type: response.data.id_perfil === 2 ? "driver" : response.data.id_perfil === 3 ? "admin" : "passenger",
         })
       )

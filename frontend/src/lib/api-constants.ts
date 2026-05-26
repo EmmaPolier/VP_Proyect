@@ -15,6 +15,30 @@ export const API_ENDPOINTS = {
   TIPOS_TRANSACCION: `${API_BASE_URL}/api/admin/catalogs/tipos-transaccion`,
   USUARIOS: `${API_BASE_URL}/api/admin/usuarios`,
   VEHICULOS: `${API_BASE_URL}/api/admin/vehiculos`,
+
+  // Rutas y solicitudes
+  SEARCH_ROUTES: `${API_BASE_URL}/api/routes/search`,
+  CREATE_ROUTE: `${API_BASE_URL}/api/routes`,
+  CREATE_SOLICITUD: (routeId: string | number) => `${API_BASE_URL}/api/routes/${routeId}/solicitudes`,
+  CANCEL_SOLICITUD: (solicitudId: string | number) => `${API_BASE_URL}/api/routes/solicitudes/${solicitudId}/cancelar`,
+  ACCEPT_SOLICITUD: (solicitudId: string | number) => `${API_BASE_URL}/api/routes/solicitudes/${solicitudId}/aceptar`,
+  REJECT_SOLICITUD: (solicitudId: string | number) => `${API_BASE_URL}/api/routes/solicitudes/${solicitudId}/rechazar`,
+  MY_SOLICITUDES: `${API_BASE_URL}/api/routes/solicitudes/mine`,
+  DRIVER_SOLICITUDES: `${API_BASE_URL}/api/routes/solicitudes/driver`,
+  DRIVER_ROUTES: `${API_BASE_URL}/api/routes/mis-rutas`,
+  PASSENGER_DASHBOARD: `${API_BASE_URL}/api/routes/dashboard`,
+  DRIVER_DASHBOARD: `${API_BASE_URL}/api/routes/driver-dashboard`,
+  FINALIZE_ROUTE: (routeId: string | number) => `${API_BASE_URL}/api/routes/${routeId}/finalizar`,
+
+  // Calificaciones
+  USER_RATINGS: (documento: string) => `${API_BASE_URL}/api/calificaciones/${documento}`,
+  USER_RATING_STATS: (documento: string) => `${API_BASE_URL}/api/calificaciones/${documento}/estadisticas`,
+  CREATE_CALIFICACION: `${API_BASE_URL}/api/calificaciones`,
+
+  // Cartera virtual / historial
+  WALLET_SALDO: `${API_BASE_URL}/api/cartera/saldo`,
+  WALLET_HISTORIAL: `${API_BASE_URL}/api/cartera/historial`,
+  WALLET_RECARGA: `${API_BASE_URL}/api/cartera/recarga`,
 };
 
 export const ESTADO_TIPOS = {
