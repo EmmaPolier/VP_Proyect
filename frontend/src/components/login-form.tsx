@@ -98,6 +98,9 @@ export function LoginForm({
             <Field>
               <div className="flex items-center justify-between">
                 <FieldLabel htmlFor="password">Contraseña</FieldLabel>
+                <Link href="/auth/forgot-password" className="text-xs text-blue-600 hover:underline">
+                  ¿Olvidaste tu contraseña?
+                </Link>
               </div>
               <Input 
                 id="password" 

@@ -58,66 +58,89 @@ export function SignupForm({
     }))
   }
 
+  const validateForm = (): string | null => {
+    // Validar nombre
+    if (!formData.name.trim()) {
+      return "El nombre es requerido"
+    }
+
+    // Validar apellido
+    if (!formData.lastname.trim()) {
+      return "El apellido es requerido"
+    }
+
+    // Validar documento
+    if (!formData.document.trim()) {
+      return "El documento es requerido"
+    }
+
+    const docNumbers = formData.document.replace(/\D/g, "")
+    if (docNumbers.length < 5) {
+      return "El documento debe tener mínimo 5 dígitos (ej: 12345678)"
+    }
+
+    if (docNumbers.length > 11) {
+      return "El documento no puede tener más de 11 dígitos"
+    }
+
+    // Validar email
+    if (!formData.email.trim()) {
+      return "El email es requerido"
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      return "Introduce un email válido"
+    }
+
+    if (!formData.email.endsWith("@elpoli.edu.co")) {
+      return "El email debe usar el dominio @elpoli.edu.co"
+    }
+
+    // Validar teléfono
+    if (!formData.phone.trim()) {
+      return "El teléfono es requerido"
+    }
+
+    const phoneNumbers = formData.phone.replace(/\D/g, "")
+    if (phoneNumbers.length < 10) {
+      return "El teléfono debe tener mínimo 10 dígitos (ej: 3001234567)"
+    }
+
+    if (phoneNumbers.length > 10) {
+      return "El teléfono debe tener exactamente 10 dígitos"
+    }
+
+    if (!phoneNumbers.match(/^3\d{9}$/)) {
+      return "El teléfono debe comenzar con 3 (ej: 3001234567)"
+    }
+
+    // Validar contraseña
+    if (formData.password.length < 8) {
+      return "La contraseña debe tener mínimo 8 caracteres"
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      return "Las contraseñas no coinciden"
+    }
+
+    return null
+  }
+
   const handleCreateAccount = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
 
     try {
-      if (!formData.name.trim()) {
-        setError("El nombre es requerido")
+      // Validar formulario completo
+      const validationError = validateForm()
+      if (validationError) {
+        setError(validationError)
         setIsLoading(false)
         return
       }
 
-      if (!formData.lastname.trim()) {
-        setError("El apellido es requerido")
-        setIsLoading(false)
-        return
-      }
-
-      if (!formData.document.trim()) {
-        setError("El documento es requerido")
-        setIsLoading(false)
-        return
-      }
-
-      if (!formData.email.trim()) {
-        setError("El email es requerido")
-        setIsLoading(false)
-        return
-      }
-
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        setError("Introduce un email válido")
-        setIsLoading(false)
-        return
-      }
-
-      if (!formData.email.endsWith("@elpoli.edu.co")) {
-        setError("El email debe usar el dominio @elpoli.edu.co")
-        setIsLoading(false)
-        return
-      }
-
-      if (!formData.phone.trim()) {
-        setError("El teléfono es requerido")
-        setIsLoading(false)
-        return
-      }
-
-      if (formData.password.length < 8) {
-        setError("La contraseña debe tener mínimo 8 caracteres")
-        setIsLoading(false)
-        return
-      }
-
-      if (formData.password !== formData.confirmPassword) {
-        setError("Las contraseñas no coinciden")
-        setIsLoading(false)
-        return
-      }
-
+      // Enviar datos al servidor
       const response = await axios.post(`${API_URL}/register`, {
         documento: formData.document,
         nombres: formData.name,
@@ -149,8 +172,22 @@ export function SignupForm({
       }
     } catch (err: any) {
       console.error("Error:", err)
+      
+      // Prioridad de mensajes de error
       if (err.response?.data?.message) {
+        // Mensaje específico del servidor
         setError(err.response.data.message)
+      } else if (err.response?.data?.error) {
+        // Campo de error alternativo
+        setError(err.response.data.error)
+      } else if (err.response?.status === 400) {
+        // Error de validación
+        setError("Error en los datos ingresados. Verifica todos los campos.")
+      } else if (err.response?.status === 500) {
+        // Error del servidor
+        setError("Error en el servidor. Intenta más tarde.")
+      } else if (err.code === "ERR_NETWORK") {
+        setError("Error de conexión. Verifica tu conexión a internet.")
       } else {
         setError("Error al crear la cuenta. Intenta de nuevo.")
       }

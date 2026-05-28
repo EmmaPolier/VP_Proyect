@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import { initializePool, closePool } from './db.js';
 
 // Importar controladores directamente
-import { register, verify, login } from './controllers/auth.controller.js';
+import { register, verify, login, forgotPassword, resetPassword } from './controllers/auth.controller.js';
 import menuRoutes from './routes/menu.routes.js';
 import vehicleRoutes from './routes/vehicle.routes.js';
 import adminRoutes from './routes/admin/index.js';
@@ -36,6 +36,8 @@ app.use(express.json());
 app.post('/register', register);
 app.post('/verify', verify);
 app.post('/login', login);
+app.post('/forgot-password', forgotPassword);
+app.post('/reset-password', resetPassword);
 
 // Rutas de menú
 app.use('/menu', menuRoutes);

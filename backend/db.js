@@ -1,35 +1,76 @@
 import oracledb from 'oracledb';
 import dotenv from 'dotenv';
+import os from 'os';
 
 dotenv.config();
 
 // Configurar oracledb
 oracledb.autoCommit = true;
 
-const dbConfig = {
-  user: process.env.ORACLE_USER,
-  password: process.env.ORACLE_PASSWORD,
-  connectionString: `${process.env.ORACLE_HOST}:${process.env.ORACLE_PORT}/${process.env.ORACLE_SID}`
-};
+// Obtener el hostname de la máquina actual
+const hostname = os.hostname();
+
+// Crear múltiples configuraciones de conexión para mayor compatibilidad
+const dbConfigs = [
+  // Intenta con hostname local primero
+  {
+    user: process.env.ORACLE_USER,
+    password: process.env.ORACLE_PASSWORD,
+    connectionString: `${hostname}:${process.env.ORACLE_PORT}/${process.env.ORACLE_SID}`
+  },
+  // Intenta con localhost
+  {
+    user: process.env.ORACLE_USER,
+    password: process.env.ORACLE_PASSWORD,
+    connectionString: `localhost:${process.env.ORACLE_PORT}/${process.env.ORACLE_SID}`
+  },
+  // Intenta con 127.0.0.1
+  {
+    user: process.env.ORACLE_USER,
+    password: process.env.ORACLE_PASSWORD,
+    connectionString: `127.0.0.1:${process.env.ORACLE_PORT}/${process.env.ORACLE_SID}`
+  },
+  // Intenta con variable de entorno si está configurada
+  {
+    user: process.env.ORACLE_USER,
+    password: process.env.ORACLE_PASSWORD,
+    connectionString: `${process.env.ORACLE_HOST}:${process.env.ORACLE_PORT}/${process.env.ORACLE_SID}`
+  }
+];
 
 // Pool de conexiones
 let connectionPool;
+let activeConfigIndex = -1;
 
 export async function initializePool() {
   try {
-    connectionPool = await oracledb.createPool({
-      ...dbConfig,
-      poolMin: 2,
-      poolMax: 10,
-      poolIncrement: 1,
-      waitTimeout: 60000,
-      timeout: 60
-    });
-    
-    console.log('Pool de conexiones a Oracle XE creado exitosamente');
-    return connectionPool;
+    for (let i = 0; i < dbConfigs.length; i++) {
+      try {
+        const config = dbConfigs[i];
+        console.log(`[DB] Intentando conectar con: ${config.connectionString}`);
+        
+        connectionPool = await oracledb.createPool({
+          ...config,
+          poolMin: 2,
+          poolMax: 10,
+          poolIncrement: 1,
+          waitTimeout: 60000,
+          timeout: 60
+        });
+        
+        activeConfigIndex = i;
+        console.log(`[DB] ✓ Pool de conexiones a Oracle XE creado exitosamente`);
+        console.log(`[DB] Conectado a: ${config.connectionString}`);
+        return connectionPool;
+      } catch (error) {
+        console.warn(`[DB] Fallo con ${dbConfigs[i].connectionString}: ${error.message}`);
+        if (i === dbConfigs.length - 1) {
+          throw new Error('No se pudo conectar con ninguna configuración de Oracle');
+        }
+      }
+    }
   } catch (error) {
-    console.error('Error al crear pool de conexiones:', error);
+    console.error('[DB] Error al crear pool de conexiones:', error.message);
     process.exit(1);
   }
 }
@@ -41,7 +82,7 @@ export async function getConnection() {
     }
     return await connectionPool.getConnection();
   } catch (error) {
-    console.error('Error al obtener conexión:', error);
+    console.error('[DB] Error al obtener conexión:', error.message);
     throw error;
   }
 }

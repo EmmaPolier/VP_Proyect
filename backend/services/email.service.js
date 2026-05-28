@@ -69,3 +69,49 @@ export async function sendNotificationEmail(to, subject, html) {
     throw error;
   }
 }
+
+export async function sendPasswordResetEmail(to, nombre, resetLink) {
+  try {
+    await transporter.sendMail({
+      from: `"VamonosPues" <${process.env.EMAIL_USER}>`,
+      to,
+      subject: "Recupera tu contraseña - VamonosPues",
+      html: `
+        <div style="font-family:sans-serif;max-width:500px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px;background:#f9f9f9">
+          <h2 style="color:#333;margin-bottom:8px">VamonosPues 🚗</h2>
+          <p style="color:#555;margin-bottom:16px">Hola ${nombre},</p>
+          
+          <p style="color:#555;margin-bottom:16px">Recibimos una solicitud para recuperar tu contraseña. Haz clic en el botón de abajo para crear una nueva contraseña:</p>
+          
+          <div style="text-align:center;margin:24px 0">
+            <a href="${resetLink}" style="display:inline-block;padding:14px 32px;background:#007bff;color:white;text-decoration:none;border-radius:6px;font-weight:bold;font-size:16px">
+              Recuperar Contraseña
+            </a>
+          </div>
+          
+          <p style="color:#888;font-size:13px;margin-bottom:12px">
+            O copia este link en tu navegador: <br/>
+            <a href="${resetLink}" style="color:#007bff;word-break:break-all;font-size:12px">${resetLink}</a>
+          </p>
+          
+          <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;margin:16px 0;border-radius:4px">
+            <p style="color:#856404;margin:0;font-size:13px">
+              ⚠️ <strong>Este link expira en 30 minutos</strong> por razones de seguridad.
+            </p>
+          </div>
+          
+          <p style="color:#555;margin-bottom:8px">Si no solicitaste recuperar tu contraseña, puedes ignorar este email. Tu cuenta permanecerá segura.</p>
+          
+          <p style="color:#888;font-size:12px;margin-top:24px;border-top:1px solid #ddd;padding-top:16px">
+            VamonosPues © 2026<br/>
+            Este es un email automático, por favor no responda.
+          </p>
+        </div>
+      `,
+    });
+    console.log(`[OK] Email de recuperación de contraseña enviado a ${to}`);
+  } catch (error) {
+    console.error('[ERROR] Error enviando email de recuperación:', error);
+    throw error;
+  }
+}

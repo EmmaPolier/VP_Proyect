@@ -1,7 +1,7 @@
 import bcryptjs from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getConnection } from '../db.js';
-import { sendOTP } from '../services/email.service.js';
+import { sendOTP, sendPasswordResetEmail } from '../services/email.service.js';
 
 export async function register(req, res) {
   // Aceptar nombres de campos del frontend
@@ -25,21 +25,64 @@ export async function register(req, res) {
     // Validar campos requeridos
     if (!email || !finalPassword) {
       console.error('[ERROR] Validación fallida: email o password vacíos', { email, finalPassword: finalPassword ? '[presente]' : '[vacío]' });
-      return res.status(400).json({ error: 'Email y contraseña son requeridos' });
+      return res.status(400).json({ message: 'Email y contraseña son requeridos' });
+    }
+
+    if (!documento) {
+      console.error('[ERROR] Documento vacío');
+      return res.status(400).json({ message: 'El documento es requerido' });
+    }
+
+    if (!telefono) {
+      console.error('[ERROR] Teléfono vacío');
+      return res.status(400).json({ message: 'El teléfono es requerido' });
+    }
+
+    // Validar longitud de documento
+    const docOnlyNumbers = documento.replace(/\D/g, '');
+    if (docOnlyNumbers.length < 5 || docOnlyNumbers.length > 11) {
+      console.error('[ERROR] Documento con formato inválido:', documento);
+      return res.status(400).json({ message: 'El documento debe tener entre 5 y 11 dígitos' });
+    }
+
+    // Validar longitud de teléfono
+    const phoneOnlyNumbers = telefono.replace(/\D/g, '');
+    if (phoneOnlyNumbers.length !== 10) {
+      console.error('[ERROR] Teléfono con formato inválido:', telefono);
+      return res.status(400).json({ message: 'El teléfono debe tener exactamente 10 dígitos' });
+    }
+
+    if (!phoneOnlyNumbers.match(/^3\d{9}$/)) {
+      console.error('[ERROR] Teléfono no comienza con 3:', telefono);
+      return res.status(400).json({ message: 'El teléfono debe comenzar con 3' });
     }
 
     connection = await getConnection();
 
+    const docValue = documento || email.split('@')[0];
+
     // Verificar si el email ya existe
-    const existing = await connection.execute(
+    const existingEmail = await connection.execute(
       `SELECT DOCUMENTO_USU FROM USUARIO WHERE CORREO_USU = :email`,
       { email }
     );
 
-    if (existing.rows && existing.rows.length > 0) {
+    if (existingEmail.rows && existingEmail.rows.length > 0) {
       console.log('[ERROR] Email ya registrado:', email);
       await connection.close();
-      return res.status(400).json({ error: 'El email ya está registrado' });
+      return res.status(400).json({ message: 'El email ya está registrado. Usa otro email o intenta recuperar tu contraseña.' });
+    }
+
+    // Verificar si el documento ya existe
+    const existingDoc = await connection.execute(
+      `SELECT DOCUMENTO_USU FROM USUARIO WHERE DOCUMENTO_USU = :document`,
+      { document: docValue }
+    );
+
+    if (existingDoc.rows && existingDoc.rows.length > 0) {
+      console.log('[ERROR] Documento ya registrado:', docValue);
+      await connection.close();
+      return res.status(400).json({ message: 'Este documento ya está registrado. Usa otro documento.' });
     }
 
     // Hash de contraseña
@@ -51,7 +94,6 @@ export async function register(req, res) {
     const perfilId = isConductor ? 2 : 1;
 
     // Insertar usuario
-    const docValue = documento || email.split('@')[0];
     const telefonoValue = telefono || '0000000000';
     const primerApellidoValue = primerApellido || '';
     const segundoApellidoValue = segundoApellido || '';
@@ -132,9 +174,21 @@ export async function register(req, res) {
       message: 'Registro exitoso. Verifica tu email.'
     });
   } catch (err) {
-    console.error('[ERROR] Error en register:', err);
-    if (connection) await connection.close();
-    return res.status(500).json({ error: 'Error interno del servidor', details: err.message });
+    console.error('[ERROR] Error en register:', err.message, err.stack);
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeErr) {
+        console.error('[ERROR] Error al cerrar conexión:', closeErr.message);
+      }
+    }
+    
+    // Enviar mensaje genérico al cliente pero log detallado en servidor
+    const errorMsg = err.message || 'Error interno del servidor';
+    return res.status(500).json({ 
+      message: `Error al procesar el registro: ${errorMsg}`,
+      error: 'Error interno del servidor'
+    });
   }
 }
 
@@ -283,5 +337,195 @@ export async function login(req, res) {
     console.error('[ERROR] Error en login:', err);
     if (connection) await connection.close();
     return res.status(500).json({ error: 'Error interno del servidor', details: err.message });
+  }
+}
+
+export async function forgotPassword(req, res) {
+  const { email } = req.body;
+
+  let connection;
+  try {
+    if (!email) {
+      return res.status(400).json({ message: 'El email es requerido' });
+    }
+
+    connection = await getConnection();
+
+    // Buscar usuario por email
+    const userResult = await connection.execute(
+      `SELECT DOCUMENTO_USU, NOMBRES_USU FROM USUARIO WHERE CORREO_USU = :email`,
+      { email }
+    );
+
+    if (!userResult.rows || userResult.rows.length === 0) {
+      await connection.close();
+      // No revelar si el email existe o no (seguridad)
+      return res.status(200).json({ 
+        message: 'Si el email está registrado, recibirás un link de recuperación' 
+      });
+    }
+
+    const [documento, nombres] = userResult.rows[0];
+
+    // Generar token JWT con expiración de 30 minutos
+    const resetToken = jwt.sign(
+      { documento, email, type: 'password-reset' },
+      process.env.JWT_SECRET,
+      { expiresIn: '30m' }
+    );
+
+    // Guardar token en la BD
+    await connection.execute(
+      `INSERT INTO RECUPERACION_CONTRASENA (
+        ID_REC, DOCUMENTO_USU_REC, TOKEN_REC, 
+        FECHA_EXPIRACION_REC, USADO_REC, FECHA_CREACION_REC
+      ) VALUES (
+        SEQ_RECUPERACION_CONTRASENA.NEXTVAL, :documento, :token,
+        SYSDATE + (30/1440), 'N', SYSDATE
+      )`,
+      { documento, token: resetToken }
+    );
+
+    // Construir link de recuperación
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/reset-password?token=${resetToken}`;
+
+    // Enviar email (sin bloquear si falla)
+    try {
+      await sendPasswordResetEmail(email, nombres, resetLink);
+      console.log('[INFO] Email de recuperación enviado a:', email);
+    } catch (emailError) {
+      console.warn('[WARNING] Error enviando email de recuperación:', emailError.message);
+      // Continuar aunque falle el email
+    }
+
+    await connection.close();
+
+    // Respuesta exitosa genérica (por seguridad)
+    return res.status(200).json({ 
+      message: 'Si el email está registrado, recibirás un link de recuperación' 
+    });
+  } catch (err) {
+    console.error('[ERROR] Error en forgotPassword:', err.message);
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeErr) {
+        console.error('[ERROR] Error cerrando conexión:', closeErr.message);
+      }
+    }
+    return res.status(500).json({ 
+      message: 'Error al procesar la solicitud de recuperación' 
+    });
+  }
+}
+
+export async function resetPassword(req, res) {
+  const { token, newPassword, confirmPassword } = req.body;
+
+  let connection;
+  try {
+    if (!token || !newPassword || !confirmPassword) {
+      return res.status(400).json({ 
+        message: 'Token, contraseña nueva y confirmación son requeridos' 
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ 
+        message: 'Las contraseñas no coinciden' 
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ 
+        message: 'La contraseña debe tener mínimo 8 caracteres' 
+      });
+    }
+
+    // Validar token JWT
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(400).json({ 
+        message: 'El link de recuperación es inválido o ha expirado' 
+      });
+    }
+
+    if (decoded.type !== 'password-reset') {
+      return res.status(400).json({ 
+        message: 'Token inválido' 
+      });
+    }
+
+    connection = await getConnection();
+
+    // Verificar que el token existe en la BD y no ha sido usado
+    const tokenResult = await connection.execute(
+      `SELECT ID_REC, USADO_REC, FECHA_EXPIRACION_REC 
+       FROM RECUPERACION_CONTRASENA 
+       WHERE TOKEN_REC = :token AND DOCUMENTO_USU_REC = :documento`,
+      { token, documento: decoded.documento }
+    );
+
+    if (!tokenResult.rows || tokenResult.rows.length === 0) {
+      await connection.close();
+      return res.status(400).json({ 
+        message: 'Token inválido o no encontrado' 
+      });
+    }
+
+    const [idRec, usado, fechaExpiracion] = tokenResult.rows[0];
+
+    if (usado === 'S') {
+      await connection.close();
+      return res.status(400).json({ 
+        message: 'Este link de recuperación ya ha sido usado' 
+      });
+    }
+
+    // Verificar si el token ha expirado
+    const ahora = new Date();
+    if (new Date(fechaExpiracion) < ahora) {
+      await connection.close();
+      return res.status(400).json({ 
+        message: 'El link de recuperación ha expirado' 
+      });
+    }
+
+    // Hash de la nueva contraseña
+    const hash = await bcryptjs.hash(newPassword, 10);
+
+    // Actualizar contraseña del usuario
+    await connection.execute(
+      `UPDATE USUARIO SET CONTRASENA_USU = :hash 
+       WHERE DOCUMENTO_USU = :documento`,
+      { hash, documento: decoded.documento }
+    );
+
+    // Marcar token como usado
+    await connection.execute(
+      `UPDATE RECUPERACION_CONTRASENA SET USADO_REC = 'S' 
+       WHERE ID_REC = :id`,
+      { id: idRec }
+    );
+
+    await connection.close();
+
+    return res.status(200).json({ 
+      message: 'Contraseña actualizada exitosamente. Puedes iniciar sesión.' 
+    });
+  } catch (err) {
+    console.error('[ERROR] Error en resetPassword:', err.message);
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeErr) {
+        console.error('[ERROR] Error cerrando conexión:', closeErr.message);
+      }
+    }
+    return res.status(500).json({ 
+      message: 'Error al procesar el cambio de contraseña' 
+    });
   }
 }
