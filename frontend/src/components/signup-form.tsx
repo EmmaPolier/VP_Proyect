@@ -155,19 +155,29 @@ export function SignupForm({
       })
 
       if (response.status === 201) {
+        const isNuevoPerfil = response.data.nuevosPerfil === true;
+        
         localStorage.setItem(
           "pendingVerification",
           JSON.stringify({
             id: response.data.usuario.documento,
             email: response.data.usuario.email,
             type: formData.role === "DRIVER" ? "driver" : "passenger",
+            nuevosPerfil: isNuevoPerfil,
+            message: response.data.message
           })
         )
 
-        if (formData.role === "DRIVER") {
-          router.push("/signup/driver/vehicle")
+        // Si es un nuevo perfil agregado a usuario existente, ir al login con selector
+        if (isNuevoPerfil) {
+          router.push("/auth?perfil=agregado")
         } else {
-          router.push("/auth")
+          // Nuevo usuario
+          if (formData.role === "DRIVER") {
+            router.push("/signup/driver/vehicle")
+          } else {
+            router.push("/auth")
+          }
         }
       }
     } catch (err: any) {

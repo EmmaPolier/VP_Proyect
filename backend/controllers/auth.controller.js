@@ -61,37 +61,139 @@ export async function register(req, res) {
 
     const docValue = documento || email.split('@')[0];
 
-    // Verificar si el email ya existe
-    const existingEmail = await connection.execute(
+    // Determinar perfil ANTES de validar
+    const isConductor = finalRole === 'DRIVER' || finalRole === 'CONDUCTOR';
+    const perfilId = isConductor ? 2 : 1;
+    const nombrePerfil = isConductor ? 'CONDUCTOR' : 'PASAJERO';
+
+    // Verificar si el usuario ya existe
+    const existingUser = await connection.execute(
       `SELECT DOCUMENTO_USU FROM USUARIO WHERE CORREO_USU = :email`,
       { email }
     );
 
-    if (existingEmail.rows && existingEmail.rows.length > 0) {
-      console.log('[ERROR] Email ya registrado:', email);
+    if (existingUser.rows && existingUser.rows.length > 0) {
+      // Usuario existe, verificar si ya tiene este perfil
+      const userDoc = existingUser.rows[0][0];
+      
+      const existingProfile = await connection.execute(
+        `SELECT ID_PER_UPE FROM USUARIO_PERFIL 
+         WHERE DOCUMENTO_USU_UPE = :documento AND ID_PER_UPE = :perfilId`,
+        { documento: userDoc, perfilId }
+      );
+
+      if (existingProfile.rows && existingProfile.rows.length > 0) {
+        // Mismo perfil ya existe
+        console.log('[ERROR] Usuario ya tiene el perfil', nombrePerfil);
+        await connection.close();
+        return res.status(400).json({ 
+          message: `Ya estás registrado como ${nombrePerfil} con este email. Intenta con otro email o inicia sesión.` 
+        });
+      }
+
+      // Perfil diferente - permitir agregar nuevo perfil
+      console.log('[INFO] Usuario existente agregando perfil:', nombrePerfil);
+      
+      // El usuario ya existe, solo agregar el nuevo perfil
+      await connection.execute(
+        `INSERT INTO USUARIO_PERFIL (ID_UPE, DOCUMENTO_USU_UPE, ID_PER_UPE, CALIFICACION_UPE, FECHA_ASIGNACION_UPE)
+         VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, :document, :perfilId, 5.0, SYSDATE)`,
+        { document: userDoc, perfilId }
+      );
+
+      // Limpiar códigos OTP antiguos para este documento
+      await connection.execute(
+        `DELETE FROM VERIFICACION_CORREO WHERE DOCUMENTO_USU_VER = :document`,
+        { document: userDoc }
+      );
+
+      // Generar nuevo OTP para verificar el nuevo perfil
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+      await connection.execute(
+        `INSERT INTO VERIFICACION_CORREO (
+          ID_VER, DOCUMENTO_USU_VER, CODIGO_VER,
+          FECHA_EXPIRACION_VER, USADO_VER, FECHA_CREACION_VER
+        ) VALUES (
+          SEQ_VERIFICACION_CORREO.NEXTVAL, :document, :code,
+          :expiry, 'N', SYSDATE
+        )`,
+        { document: userDoc, code, expiry }
+      );
+
+      // Enviar OTP al email del usuario
+      try {
+        await sendOTP(email, code);
+        console.log('[INFO] OTP enviado para nuevo perfil:', nombrePerfil);
+      } catch (emailError) {
+        console.warn('[WARNING] No se pudo enviar OTP, pero el perfil fue agregado:', emailError.message);
+      }
+
       await connection.close();
-      return res.status(400).json({ message: 'El email ya está registrado. Usa otro email o intenta recuperar tu contraseña.' });
+
+      return res.status(201).json({
+        usuario: {
+          documento: userDoc,
+          email,
+          nombres: finalNombre,
+          perfil: nombrePerfil,
+          nuevosPerfil: true
+        },
+        message: `Perfil de ${nombrePerfil} agregado exitosamente. Verifica tu email.`
+      });
     }
 
-    // Verificar si el documento ya existe
+    // Usuario NO existe, verificar documento como precaución adicional
     const existingDoc = await connection.execute(
       `SELECT DOCUMENTO_USU FROM USUARIO WHERE DOCUMENTO_USU = :document`,
       { document: docValue }
     );
 
+    // El documento no debería existir si el email no existe, pero verificamos igual
     if (existingDoc.rows && existingDoc.rows.length > 0) {
-      console.log('[ERROR] Documento ya registrado:', docValue);
+      // Caso raro pero posible: documento existe pero con diferente email
+      const existingDocEmail = existingDoc.rows[0][0];
+      
+      const existingDocProfile = await connection.execute(
+        `SELECT ID_PER_UPE FROM USUARIO_PERFIL 
+         WHERE DOCUMENTO_USU_UPE = :documento AND ID_PER_UPE = :perfilId`,
+        { documento: existingDocEmail, perfilId }
+      );
+
+      if (existingDocProfile.rows && existingDocProfile.rows.length > 0) {
+        console.log('[ERROR] Documento ya registrado con el mismo perfil:', docValue);
+        await connection.close();
+        return res.status(400).json({ 
+          message: `Este documento ya está registrado como ${nombrePerfil}.` 
+        });
+      }
+
+      // Documento existe pero con diferente perfil - permitir
+      // (El usuario puede cambiar el email pero mantener el documento con otro perfil)
+      console.log('[INFO] Documento existente con diferente perfil y email');
+      
+      await connection.execute(
+        `INSERT INTO USUARIO_PERFIL (ID_UPE, DOCUMENTO_USU_UPE, ID_PER_UPE, CALIFICACION_UPE, FECHA_ASIGNACION_UPE)
+         VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, :document, :perfilId, 5.0, SYSDATE)`,
+        { document: existingDocEmail, perfilId }
+      );
+
       await connection.close();
-      return res.status(400).json({ message: 'Este documento ya está registrado. Usa otro documento.' });
+
+      return res.status(201).json({
+        usuario: {
+          documento: existingDocEmail,
+          email,
+          nombres: finalNombre,
+          perfil: nombrePerfil,
+        },
+        message: `Perfil de ${nombrePerfil} agregado exitosamente. Puedes iniciar sesión.`
+      });
     }
 
     // Hash de contraseña
     const hash = await bcryptjs.hash(finalPassword, 10);
-
-    // Determinar perfil (PASAJERO=1, CONDUCTOR=2)
-    // Frontend puede enviar: "DRIVER"/"CONDUCTOR" o "PASSENGER"/"PASAJERO"
-    const isConductor = finalRole === 'DRIVER' || finalRole === 'CONDUCTOR';
-    const perfilId = isConductor ? 2 : 1;
 
     // Insertar usuario
     const telefonoValue = telefono || '0000000000';
@@ -268,7 +370,7 @@ export async function verify(req, res) {
 }
 
 export async function login(req, res) {
-  const { email, password, contrasena } = req.body;
+  const { email, password, contrasena, perfilId } = req.body;
   
   // Frontend envía "contrasena", así que aceptar ambos nombres
   const finalPassword = password || contrasena;
@@ -308,29 +410,71 @@ export async function login(req, res) {
       return res.status(401).json({ error: 'Contraseña incorrecta' });
     }
 
-    // Obtener perfil del usuario
-    const perfResult = await connection.execute(
-      `SELECT ID_PER_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento`,
+    // Obtener TODOS los perfiles del usuario
+    const perfilesResult = await connection.execute(
+      `SELECT ID_PER_UPE, CALIFICACION_UPE FROM USUARIO_PERFIL 
+       WHERE DOCUMENTO_USU_UPE = :documento`,
       { documento }
     );
 
-    const perfilId = perfResult.rows && perfResult.rows.length > 0 ? perfResult.rows[0][0] : 1;
+    const perfiles = perfilesResult.rows ? perfilesResult.rows.map(row => ({
+      id: row[0],
+      nombre: row[0] === 1 ? 'PASAJERO' : row[0] === 2 ? 'CONDUCTOR' : 'ADMIN',
+      calificacion: row[1]
+    })) : [];
+
+    // Si no hay perfiles (caso raro), usar PASAJERO por defecto
+    if (perfiles.length === 0) {
+      await connection.execute(
+        `INSERT INTO USUARIO_PERFIL (ID_UPE, DOCUMENTO_USU_UPE, ID_PER_UPE, CALIFICACION_UPE, FECHA_ASIGNACION_UPE)
+         VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, :documento, 1, 5.0, SYSDATE)`,
+        { documento }
+      );
+      perfiles.push({ id: 1, nombre: 'PASAJERO', calificacion: 5.0 });
+    }
+
+    // Si tiene múltiples perfiles Y no especificó uno, devolver lista para selector
+    if (perfiles.length > 1 && !perfilId) {
+      console.log('[INFO] Usuario con múltiples perfiles:', documento, perfiles);
+      await connection.close();
+      return res.status(200).json({
+        selectPerfil: true,
+        documento,
+        email,
+        nombres,
+        perfiles: perfiles
+      });
+    }
+
+    // Determinar perfil a usar
+    let selectedProfile = perfilId ? perfiles.find(p => p.id === parseInt(perfilId)) : perfiles[0];
+    
+    // Si solicita un perfil que no tiene, rechazar
+    if (!selectedProfile) {
+      console.log('[ERROR] Perfil no válido para usuario:', documento, perfilId);
+      await connection.close();
+      return res.status(403).json({ error: 'No tienes acceso a ese perfil' });
+    }
 
     await connection.close();
 
     // Generar JWT
     const token = jwt.sign(
-      { documento, email, perfil: perfilId },
+      { documento, email, perfil: selectedProfile.id },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
+
+    console.log('[INFO] Login exitoso:', email, 'perfil:', selectedProfile.nombre);
 
     return res.json({
       id: documento,
       email,
       nombres,
       documento,
-      id_perfil: perfilId,
+      id_perfil: selectedProfile.id,
+      perfil_nombre: selectedProfile.nombre,
+      calificacion: selectedProfile.calificacion,
       token
     });
   } catch (err) {
