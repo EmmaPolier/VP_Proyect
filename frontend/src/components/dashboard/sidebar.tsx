@@ -4,11 +4,10 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Wallet, MapPin, Settings, LogOut, Truck, MessageSquare, History, Users, FileText, BarChart3, HelpCircle, PlusCircle, Loader2 } from "lucide-react"
-import Link from "next/link"
-import axios from "axios"
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
+import { Wallet, MapPin, Settings, LogOut, Truck, MessageSquare, History, Users, FileText, BarChart3, Loader2 } from "lucide-react"
+import { RoleSwitcher } from "@/components/role-switcher"
+import { apiClient } from "@/lib/api-client"
+import { API_ENDPOINTS } from "@/lib/api-constants"
 
 interface MenuItem {
   id: number
@@ -63,20 +62,39 @@ const iconMap: { [key: string]: React.ComponentType<{ className: string }> } = {
 export function DashboardSidebar({ userType }: DashboardSidebarProps) {
   const router = useRouter()
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  const [perfiles, setPerfiles] = useState<any[]>([])
+  const [rolActual, setRolActual] = useState<number | null>(null)
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     // Cargar usuario del localStorage
     const userStr = localStorage.getItem('currentUser')
+    const perfilesStr = localStorage.getItem('perfiles')
+    const rolActivoStr = localStorage.getItem('rolActivo')
+    
+    if (perfilesStr) {
+      setPerfiles(JSON.parse(perfilesStr))
+    }
+    
+    let rol = 1 // default to pasajero
+    if (rolActivoStr) {
+      rol = parseInt(rolActivoStr)
+      setRolActual(rol)
+    }
+    
     if (userStr) {
       try {
         const user = JSON.parse(userStr) as CurrentUser
         setCurrentUser(user)
         
-        // Cargar menú dinámico
-        fetchMenu(user.id_perfil)
+        // Cargar menú dinámico usando el rol activo (rolActual)
+        fetchMenu(rol)
+        if (rol === 1 || rol === 2) {
+          loadWalletBalance()
+        }
       } catch (err) {
         console.error('Error parsing user:', err)
         setError('Error al cargar usuario')
@@ -89,8 +107,13 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
 
   const fetchMenu = async (idPerfil: number) => {
     try {
-      const response = await axios.get(`${API_URL}/menu/${idPerfil}`)
-      setMenuItems(response.data.menu || [])
+      const response = await apiClient.get<{ menu: MenuItem[] }>(API_ENDPOINTS.MENU_BY_PROFILE(idPerfil))
+      // El backend puede devolver la estructura { menu, total } directamente
+      // o envolverla en { success, message, data: { menu } }.
+      // Manejar ambas variantes de forma defensiva.
+      const menuFromWrapped = response?.data?.menu
+      const menuFromRaw = (response as any)?.menu
+      setMenuItems(menuFromWrapped || menuFromRaw || [])
       setError(null)
     } catch (err) {
       console.error('Error fetching menu:', err)
@@ -98,6 +121,63 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadWalletBalance = async () => {
+    try {
+      const response = await apiClient.get<{ saldo: number }>(API_ENDPOINTS.WALLET_SALDO)
+      const saldo = response.data?.saldo ?? (response as any).saldo ?? null
+      setWalletBalance(saldo)
+    } catch (err) {
+      console.error('Error loading wallet balance:', err)
+      setWalletBalance(null)
+    }
+  }
+
+  const normalizeMenuUrl = (url: string) => {
+    const normalized = url.toLowerCase()
+    if (isPassenger) {
+      if (normalized.includes('/search') || normalized.includes('buscar')) return 'buscar'
+      if (normalized.includes('/my-trips') || normalized.includes('viajes') || normalized.includes('mis-viajes')) return 'viajes'
+      if (normalized.includes('/wallet') || normalized.includes('cartera')) return 'cartera'
+      if (normalized.includes('/profile') || normalized.includes('perfil') || normalized.includes('/settings')) return 'perfil'
+      if (normalized.includes('/carrera') || normalized.includes('resumen')) return 'carrera'
+      // Peticiones/solicitudes del pasajero
+      if (normalized.includes('/requests') || normalized.includes('solicitudes')) return 'viajes'
+    }
+    if (isDriver) {
+      if (normalized.includes('/routes') || normalized.includes('rutas')) return 'driver-routes'
+      if (normalized.includes('/requests') || normalized.includes('solicitudes')) return 'driver-requests'
+      if (normalized.includes('/wallet') || normalized.includes('cartera')) return 'driver-wallet'
+      if (normalized.includes('/profile') || normalized.includes('perfil') || normalized.includes('/settings')) return 'driver-profile'
+      // Historial de viajes / mis rutas
+      if (normalized.includes('/history') || normalized.includes('historial') || normalized.includes('/my-routes')) return 'driver-my-routes'
+      // Vehículos asociados al conductor
+      if (normalized.includes('/vehicles') || normalized.includes('vehiculos') || normalized.includes('/vehicle')) return 'driver-profile'
+    }
+    return null
+  }
+
+  const getDashboardBasePath = () => {
+    if (isDriver) return '/dashboard/driver'
+    if (isPassenger) return '/dashboard/passenger'
+    return '/dashboard'
+  }
+
+  const handleMenuClick = (item: MenuItem) => {
+    const section = normalizeMenuUrl(item.url)
+    if (section) {
+      router.replace(`${getDashboardBasePath()}?section=${section}`)
+      return
+    }
+
+    // Fallback: use the menu url only when it points to an actual route under /dashboard
+    if (item.url.startsWith('/dashboard')) {
+      router.replace(item.url)
+      return
+    }
+
+    console.warn('Menú no mapeado:', item.url)
   }
 
   const handleLogout = () => {
@@ -117,9 +197,9 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
     return null
   }
 
-  const isDriver = currentUser.id_perfil === 2
-  const isAdmin = currentUser.id_perfil === 3
-  const isPassenger = currentUser.id_perfil === 1
+  const isDriver = rolActual === 2
+  const isAdmin = rolActual === 3
+  const isPassenger = rolActual === 1
 
   // Obtener nombre corto
   const firstName = currentUser.nombres?.split(' ')[0] || 'Usuario'
@@ -135,12 +215,19 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
           <div>
             <h3 className="font-bold text-sm">{firstName}</h3>
             <p className="text-xs text-muted-foreground">
-              {isDriver && "Conductor ⭐ 4.9"}
+              {isDriver && "Conductor"}
               {isPassenger && "Pasajero"}
               {isAdmin && "Administrador"}
             </p>
           </div>
         </div>
+        
+        {/* Role Switcher */}
+        {perfiles && perfiles.length > 1 && rolActual && (
+          <div className="pt-2 border-t">
+            <RoleSwitcher perfiles={perfiles} rolActual={rolActual} />
+          </div>
+        )}
       </div>
 
       {/* Logo */}
@@ -159,20 +246,16 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
           {menuItems.map((item) => {
             const Icon = iconMap[item.url] || MapPin
             return (
-              <Link
+              <Button
                 key={item.id}
-                href={item.url}
-                className="block"
+                variant="ghost"
+                className="w-full justify-start text-sm hover:bg-accent"
+                title={item.nombre}
+                onClick={() => handleMenuClick(item)}
               >
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-sm hover:bg-accent"
-                  title={item.nombre}
-                >
-                  <Icon className="w-4 h-4 mr-2 flex-shrink-0" />
-                  <span className="truncate">{item.nombre}</span>
-                </Button>
-              </Link>
+                <Icon className="w-4 h-4 mr-2 shrink-0" />
+                <span className="truncate">{item.nombre}</span>
+              </Button>
             )
           })}
         </nav>
@@ -185,11 +268,13 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
         <Card className="p-4 space-y-4 border-primary/20 bg-primary/5">
           <div>
             <p className="text-xs text-muted-foreground">Saldo de cartera</p>
-            <p className="text-2xl font-bold">$ 45.000 cop</p>
+            <p className="text-2xl font-bold">
+              {walletBalance === null ? 'Cargando...' : `$ ${walletBalance.toFixed(0)} COP`}
+            </p>
           </div>
-          <Button variant="outline" className="w-full" size="sm">
+          <Button variant="outline" className="w-full" size="sm" onClick={loadWalletBalance}>
             <Wallet className="w-4 h-4 mr-2" />
-            Recargar
+            Actualizar saldo
           </Button>
         </Card>
       )}

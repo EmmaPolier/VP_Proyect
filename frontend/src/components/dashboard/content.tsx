@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useMemo, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -127,6 +128,30 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
   const [ratingMessage, setRatingMessage] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
   const [routeLoading, setRouteLoading] = useState(false)
+
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const router = useRouter()
+
+  const passengerSection = searchParams.get('section') ?? 'buscar'
+  const validPassengerSections = ['buscar', 'viajes', 'cartera', 'carrera', 'perfil']
+  const passengerTabValue = validPassengerSections.includes(passengerSection) ? passengerSection : 'buscar'
+  const driverSection = searchParams.get('section') ?? ''
+
+  const handlePassengerTabChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('section', value)
+    router.replace(`${pathname}?${params.toString()}`)
+  }
+
+  useEffect(() => {
+    if (isDriver && driverSection) {
+      const element = document.getElementById(driverSection)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }
+  }, [driverSection, isDriver])
   const [routeSaving, setRouteSaving] = useState(false)
   const [dashboardLoading, setDashboardLoading] = useState(false)
   const [searchError, setSearchError] = useState("")
@@ -989,9 +1014,9 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
 
   if (isDriver) {
     return (
-      <div className="p-6 space-y-6">
+      <div id="driver-dashboard" className="p-6 space-y-6">
         {/* Header with profile and button */}
-        <div className="flex items-center justify-between">
+        <div id="driver-profile" className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
               <span className="text-2xl">👤</span>
@@ -1224,7 +1249,7 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-sm">
+          <Card id="driver-wallet" className="border-0 shadow-sm">
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground mb-2">Saldo cartera</p>
               <p className="text-3xl font-bold text-green-600">${driverStats?.wallet?.toFixed(0) ?? 0}</p>
@@ -1242,7 +1267,7 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
         </div>
 
         {/* New Request Section */}
-        <Card className="border-l-4 border-l-blue-500">
+        <Card id="driver-requests" className="border-l-4 border-l-blue-500">
           <CardContent className="pt-6">
             <p className="font-medium mb-2">Solicitudes de pasajeros</p>
             {requestsLoading ? (
@@ -1302,7 +1327,7 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
 
         {/* Routes Grid */}
         <div className="space-y-6">
-          <Card>
+          <Card id="driver-my-routes">
             <CardHeader>
               <CardTitle>Rutas publicadas</CardTitle>
               <CardDescription>Rutas activas en tu perfil</CardDescription>
@@ -1373,12 +1398,12 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
   return (
     <div className="p-6 space-y-6">
       {/* Tabs */}
-      <Tabs defaultValue="buscar" className="w-full">
+      <Tabs value={passengerTabValue} onValueChange={handlePassengerTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-5 mb-6">
           <TabsTrigger value="buscar">Buscar ruta</TabsTrigger>
           <TabsTrigger value="viajes">Mis viajes</TabsTrigger>
           <TabsTrigger value="cartera">Cartera</TabsTrigger>
-          <TabsTrigger value="carrera">Carrera</TabsTrigger>
+          <TabsTrigger value="carrera">Resumen</TabsTrigger>
           <TabsTrigger value="perfil">Perfil</TabsTrigger>
         </TabsList>
 
@@ -1900,26 +1925,26 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
           <Card>
             <CardHeader>
               <CardTitle>Mi Carrera</CardTitle>
-              <CardDescription>Estadísticas de desempeño</CardDescription>
+              <CardDescription>Resumen de viajes y solicitudes</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Viajes totales</p>
+                    <p className="text-sm text-muted-foreground">Viajes completados</p>
                     <p className="text-2xl font-bold">{passengerStats?.completedTrips ?? 0}</p>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Ingresos</p>
-                    <p className="text-2xl font-bold text-green-600">${passengerStats?.totalSpent?.toFixed(0) ?? 0}</p>
+                    <p className="text-sm text-muted-foreground">Solicitudes aceptadas</p>
+                    <p className="text-2xl font-bold">{passengerStats?.acceptedRequests ?? 0}</p>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Promedio</p>
+                    <p className="text-sm text-muted-foreground">Calificación promedio</p>
                     <p className="text-2xl font-bold">{passengerStats?.rating?.toFixed(1) ?? '0.0'}★</p>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Aceptación</p>
-                    <p className="text-2xl font-bold">{passengerStats?.acceptanceRate ?? 0}%</p>
+                    <p className="text-sm text-muted-foreground">Solicitudes pendientes</p>
+                    <p className="text-2xl font-bold">{passengerStats?.pendingRequests ?? 0}</p>
                   </div>
                 </div>
               </div>

@@ -8,9 +8,19 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Helper para ejecutar promesa con timeout
+async function withTimeout(promise, ms = 5000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout de email')), ms)
+    ),
+  ]);
+}
+
 export async function sendOTP(to, code) {
   try {
-    await transporter.sendMail({
+    await withTimeout(transporter.sendMail({
       from: `"VamonosPues" <${process.env.EMAIL_USER}>`,
       to,
       subject: "Código de verificación - VamonosPues",
@@ -24,17 +34,17 @@ export async function sendOTP(to, code) {
           <p style="color:#888;font-size:13px">Este código expira en 10 minutos. No lo compartas con nadie.</p>
         </div>
       `,
-    });
+    }), 5000);
     console.log(`[OK] OTP enviado a ${to}`);
   } catch (error) {
-    console.error('[ERROR] Error enviando OTP:', error);
+    console.error('[ERROR] Error enviando OTP:', error.message);
     throw error;
   }
 }
 
 export async function sendVerificationEmail(to, link) {
   try {
-    await transporter.sendMail({
+    await withTimeout(transporter.sendMail({
       from: `"VamonosPues" <${process.env.EMAIL_USER}>`,
       to,
       subject: "Verifica tu cuenta - VamonosPues",
@@ -47,32 +57,32 @@ export async function sendVerificationEmail(to, link) {
           </a>
         </div>
       `,
-    });
+    }), 5000);
     console.log(`[OK] Email de verificación enviado a ${to}`);
   } catch (error) {
-    console.error('[ERROR] Error enviando email:', error);
+    console.error('[ERROR] Error enviando email:', error.message);
     throw error;
   }
 }
 
 export async function sendNotificationEmail(to, subject, html) {
   try {
-    await transporter.sendMail({
+    await withTimeout(transporter.sendMail({
       from: `"VamonosPues" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       html,
-    });
+    }), 5000);
     console.log(`[OK] Notificación enviada a ${to}`);
   } catch (error) {
-    console.error('[ERROR] Error enviando notificación:', error);
+    console.error('[ERROR] Error enviando notificación:', error.message);
     throw error;
   }
 }
 
 export async function sendPasswordResetEmail(to, nombre, resetLink) {
   try {
-    await transporter.sendMail({
+    await withTimeout(transporter.sendMail({
       from: `"VamonosPues" <${process.env.EMAIL_USER}>`,
       to,
       subject: "Recupera tu contraseña - VamonosPues",
@@ -108,10 +118,10 @@ export async function sendPasswordResetEmail(to, nombre, resetLink) {
           </p>
         </div>
       `,
-    });
+    }), 5000);
     console.log(`[OK] Email de recuperación de contraseña enviado a ${to}`);
   } catch (error) {
-    console.error('[ERROR] Error enviando email de recuperación:', error);
+    console.error('[ERROR] Error enviando email de recuperación:', error.message);
     throw error;
   }
 }

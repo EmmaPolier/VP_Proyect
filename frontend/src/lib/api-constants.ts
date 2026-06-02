@@ -10,6 +10,7 @@ export const API_ENDPOINTS = {
   MARCAS: `${API_BASE_URL}/api/admin/catalogs/marcas`,
   MODELOS: `${API_BASE_URL}/api/admin/catalogs/modelos`,
   COLORES: `${API_BASE_URL}/api/admin/catalogs/colores`,
+  MENU_BY_PROFILE: (idPerfil: number) => `${API_BASE_URL}/menu/${idPerfil}`,
   ESTADOS: (tipo: string) => `${API_BASE_URL}/api/admin/catalogs/estados/${tipo}`,
   METODOS_PAGO: `${API_BASE_URL}/api/admin/catalogs/metodos-pago`,
   TIPOS_TRANSACCION: `${API_BASE_URL}/api/admin/catalogs/tipos-transaccion`,

@@ -4,7 +4,8 @@ import dotenv from 'dotenv';
 import { initializePool, closePool } from './db.js';
 
 // Importar controladores directamente
-import { register, verify, login, forgotPassword, resetPassword } from './controllers/auth.controller.js';
+import { register, verify, login, forgotPassword, resetPassword, switchRole } from './controllers/auth.controller.js';
+import { authMiddleware } from './middlewares/auth.middleware.js';
 import menuRoutes from './routes/menu.routes.js';
 import vehicleRoutes from './routes/vehicle.routes.js';
 import adminRoutes from './routes/admin/index.js';
@@ -12,6 +13,8 @@ import routeRoutes from './routes/route.routes.js';
 import carteraRoutes from './routes/cartera.routes.js';
 import calificacionRoutes from './routes/calificacion.routes.js';
 
+// Cargar .env.local primero, luego .env (para sobreescrituras locales)
+dotenv.config({ path: '.env.local' });
 dotenv.config();
 
 const app = express();
@@ -38,6 +41,7 @@ app.post('/verify', verify);
 app.post('/login', login);
 app.post('/forgot-password', forgotPassword);
 app.post('/reset-password', resetPassword);
+app.post('/switch-role', authMiddleware, switchRole);  // ← Requiere autenticación
 
 // Rutas de menú
 app.use('/menu', menuRoutes);

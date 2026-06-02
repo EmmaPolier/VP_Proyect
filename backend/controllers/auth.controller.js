@@ -467,6 +467,7 @@ export async function login(req, res) {
 
     console.log('[INFO] Login exitoso:', email, 'perfil:', selectedProfile.nombre);
 
+    // Siempre devolver todos los perfiles si hay múltiples
     return res.json({
       id: documento,
       email,
@@ -475,7 +476,8 @@ export async function login(req, res) {
       id_perfil: selectedProfile.id,
       perfil_nombre: selectedProfile.nombre,
       calificacion: selectedProfile.calificacion,
-      token
+      token,
+      perfiles: perfiles.length > 1 ? perfiles : undefined
     });
   } catch (err) {
     console.error('[ERROR] Error en login:', err);
@@ -670,6 +672,107 @@ export async function resetPassword(req, res) {
     }
     return res.status(500).json({ 
       message: 'Error al procesar el cambio de contraseña' 
+    });
+  }
+}
+
+// ============================================================================
+// SWITCH ROLE - Cambiar de rol sin logout
+// ============================================================================
+
+export async function switchRole(req, res) {
+  const { perfilId } = req.body;
+  const documento = req.user?.documento;
+
+  console.log('[INFO] Switch role solicitado:', { documento, perfilId });
+
+  let connection;
+  try {
+    // Validar que el usuario esté autenticado
+    if (!documento) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    // Validar que perfilId sea válido
+    if (!perfilId || ![1, 2, 3].includes(parseInt(perfilId))) {
+      return res.status(400).json({ error: 'Perfil inválido' });
+    }
+
+    connection = await getConnection();
+
+    // Verificar que el usuario existe
+    const userResult = await connection.execute(
+      `SELECT CORREO_USU, NOMBRES_USU FROM USUARIO WHERE DOCUMENTO_USU = :documento`,
+      { documento }
+    );
+
+    if (!userResult.rows || userResult.rows.length === 0) {
+      await connection.close();
+      console.error('[ERROR] Usuario no encontrado:', documento);
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    const [email, nombres] = userResult.rows[0];
+
+    // Verificar que el usuario tenga este perfil (PASO 2)
+    const profileResult = await connection.execute(
+      `SELECT ID_PER_UPE, CALIFICACION_UPE FROM USUARIO_PERFIL
+       WHERE DOCUMENTO_USU_UPE = :documento AND ID_PER_UPE = :perfilId`,
+      { documento, perfilId: parseInt(perfilId) }
+    );
+
+    if (!profileResult.rows || profileResult.rows.length === 0) {
+      await connection.close();
+      console.error('[ERROR] Usuario no tiene este perfil:', { documento, perfilId });
+      return res.status(403).json({ error: 'No tienes acceso a este perfil' });
+    }
+
+    const calificacion = profileResult.rows[0][1];
+
+    await connection.close();
+
+    // Generar nuevo JWT con el perfil seleccionado (PASO 3)
+    const newToken = jwt.sign(
+      { 
+        documento, 
+        email, 
+        perfil: parseInt(perfilId)
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Mapear ID a nombre de perfil
+    const perfilNombre = 
+      perfilId === 1 ? 'PASAJERO' : 
+      perfilId === 2 ? 'CONDUCTOR' : 
+      'ADMIN';
+
+    console.log('[INFO] Role switch exitoso:', { documento, perfilNombre });
+
+    return res.status(200).json({
+      token: newToken,
+      id_perfil: parseInt(perfilId),
+      perfil_nombre: perfilNombre,
+      calificacion,
+      email,
+      nombres,
+      documento,
+      message: `Ahora estás usando el perfil de ${perfilNombre}`
+    });
+
+  } catch (err) {
+    console.error('[ERROR] Error en switchRole:', err.message, err.stack);
+    if (connection) {
+      try {
+        await connection.close();
+      } catch (closeErr) {
+        console.error('[ERROR] Error cerrando conexión:', closeErr.message);
+      }
+    }
+    return res.status(500).json({ 
+      error: 'Error al cambiar de rol',
+      message: err.message 
     });
   }
 }

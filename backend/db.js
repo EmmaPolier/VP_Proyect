@@ -2,6 +2,7 @@ import oracledb from 'oracledb';
 import dotenv from 'dotenv';
 import os from 'os';
 
+// Cargar .env (configuración universal para todo el equipo)
 dotenv.config();
 
 // Configurar oracledb
@@ -11,30 +12,32 @@ oracledb.autoCommit = true;
 const hostname = os.hostname();
 
 // Crear múltiples configuraciones de conexión para mayor compatibilidad
+// Usar EZ Connect (direct hostname:port/sid) en lugar de alias TNS
+// para evitar problemas con tnsnames.ora
 const dbConfigs = [
-  // Intenta con hostname local primero
+  // Intenta primero con host configurado desde .env
   {
     user: process.env.ORACLE_USER,
     password: process.env.ORACLE_PASSWORD,
-    connectionString: `${hostname}:${process.env.ORACLE_PORT}/${process.env.ORACLE_SID}`
+    connectionString: `${process.env.ORACLE_HOST}:${process.env.ORACLE_PORT}/${process.env.ORACLE_SID}`
   },
-  // Intenta con localhost
+  // Intenta con localhost (funciona en cualquier PC con Oracle local)
   {
     user: process.env.ORACLE_USER,
     password: process.env.ORACLE_PASSWORD,
     connectionString: `localhost:${process.env.ORACLE_PORT}/${process.env.ORACLE_SID}`
   },
-  // Intenta con 127.0.0.1
+  // Intenta con 127.0.0.1 como fallback
   {
     user: process.env.ORACLE_USER,
     password: process.env.ORACLE_PASSWORD,
     connectionString: `127.0.0.1:${process.env.ORACLE_PORT}/${process.env.ORACLE_SID}`
   },
-  // Intenta con variable de entorno si está configurada
+  // Intenta con hostname local
   {
     user: process.env.ORACLE_USER,
     password: process.env.ORACLE_PASSWORD,
-    connectionString: `${process.env.ORACLE_HOST}:${process.env.ORACLE_PORT}/${process.env.ORACLE_SID}`
+    connectionString: `${hostname}:${process.env.ORACLE_PORT}/${process.env.ORACLE_SID}`
   }
 ];
 

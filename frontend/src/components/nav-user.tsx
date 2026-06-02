@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import {
   Avatar,
   AvatarFallback,
@@ -20,18 +21,28 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { ChevronsUpDownIcon, SparklesIcon, BadgeCheckIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
+import { ChevronsUpDownIcon, SparklesIcon, BadgeCheckIcon, CreditCardIcon, BellIcon, LogOutIcon, SwitchIcon } from "lucide-react"
+import { RoleSwitcher } from "@/components/role-switcher"
 
 export function NavUser({
   user,
+  perfiles = [],
+  rolActual = 1,
 }: {
   user: {
     name: string
     email: string
     avatar: string
   }
+  perfiles?: Array<{ id: number; nombre: string; calificacion: number }>
+  rolActual?: number
 }) {
   const { isMobile } = useSidebar()
+  const [perfilesState, setPerfilesState] = useState(perfiles)
+
+  useEffect(() => {
+    setPerfilesState(perfiles)
+  }, [perfiles])
 
   return (
     <SidebarMenu>
@@ -98,6 +109,17 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            {perfilesState && perfilesState.length > 1 && (
+              <>
+                <div className="px-2 py-1.5">
+                  <RoleSwitcher
+                    perfiles={perfilesState}
+                    rolActual={rolActual}
+                  />
+                </div>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem>
               <LogOutIcon
               />

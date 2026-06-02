@@ -17,12 +17,29 @@ import {
 } from "@/components/ui/sidebar"
 import { TerminalSquareIcon, BotIcon, BookOpenIcon, Settings2Icon, LifeBuoyIcon, SendIcon, FrameIcon, PieChartIcon, MapIcon, TerminalIcon } from "lucide-react"
 
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
+export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
+  const [perfiles, setPerfiles] = React.useState<any[]>([])
+  const [rolActual, setRolActual] = React.useState<number | null>(null)
+
+  React.useEffect(() => {
+    // Leer datos del localStorage
+    const perfilesStr = localStorage.getItem('perfiles')
+    const rolActivoStr = localStorage.getItem('rolActivo')
+    
+    if (perfilesStr) {
+      setPerfiles(JSON.parse(perfilesStr))
+    }
+    if (rolActivoStr) {
+      setRolActual(parseInt(rolActivoStr))
+    }
+  }, [])
+
+  const data = {
+    user: {
+      name: "shadcn",
+      email: "m@example.com",
+      avatar: "/avatars/shadcn.jpg",
+    },
   navMain: [
     {
       title: "Playground",
@@ -197,7 +214,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={data.user} perfiles={perfiles} rolActual={rolActual} />
       </SidebarFooter>
     </Sidebar>
   )

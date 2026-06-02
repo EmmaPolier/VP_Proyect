@@ -83,6 +83,19 @@ export function LoginForm({
         })
       )
 
+      // Guardar datos para AuthContext
+      localStorage.setItem("authToken", response.data.token)
+      localStorage.setItem("rolActivo", response.data.id_perfil.toString())
+      localStorage.setItem("perfilNombre", response.data.perfil_nombre)
+      if (response.data.perfiles) {
+        localStorage.setItem("perfiles", JSON.stringify(response.data.perfiles))
+        localStorage.setItem("usuario", JSON.stringify({
+          documento: response.data.documento,
+          email: response.data.email,
+          nombres: response.data.nombres
+        }))
+      }
+
       router.push("/dashboard")
     } catch (err: any) {
       console.error("Error:", err)
@@ -117,6 +130,19 @@ export function LoginForm({
           type: response.data.id_perfil === 2 ? "driver" : response.data.id_perfil === 3 ? "admin" : "passenger",
         })
       )
+
+      // Guardar datos para AuthContext
+      localStorage.setItem("authToken", response.data.token)
+      localStorage.setItem("rolActivo", response.data.id_perfil.toString())
+      localStorage.setItem("perfilNombre", response.data.perfil_nombre)
+      if (response.data.perfiles) {
+        localStorage.setItem("perfiles", JSON.stringify(response.data.perfiles))
+        localStorage.setItem("usuario", JSON.stringify({
+          documento: response.data.documento,
+          email: response.data.email,
+          nombres: response.data.nombres
+        }))
+      }
 
       router.push("/dashboard")
     } catch (err: any) {

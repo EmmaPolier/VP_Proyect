@@ -95,7 +95,7 @@ export function CRUDModal({
   useEffect(() => {
     if (initialData) {
       Object.entries(initialData).forEach(([key, value]) => {
-        form.setFieldValue(key, value);
+        form.setFieldValue(key as keyof typeof form.values, value);
       });
     }
   }, [initialData, open]);
