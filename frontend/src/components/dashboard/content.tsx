@@ -20,6 +20,8 @@ import { GoogleMap, Marker, useLoadScript } from "@react-google-maps/api"
 import { apiClient } from "@/lib/api-client"
 import { API_ENDPOINTS } from "@/lib/api-constants"
 import RatingModal from "../rating-modal"
+import CreateRouteForm from "./driver/create-route-form"
+import ViewRoutesMap from "./passenger/view-routes-map"
 
 interface DashboardContentProps {
   userType?: "passenger" | "driver" | "admin"
@@ -718,6 +720,13 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
     resetNewRouteForm()
   }
 
+  const handleRouteCreated = (routeId: number) => {
+    setIsCreatingRoute(false)
+    resetNewRouteForm()
+    // Reload routes to show the new one
+    window.location.reload()
+  }
+
   const handleSaveRoute = async () => {
     setRouteSaving(true)
     setRequestMessage('')
@@ -1038,198 +1047,9 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
           </Button>
         </div>
 
-        {isCreatingRoute ? (
-          <Card className="border border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle>Crear nueva ruta</CardTitle>
-              <CardDescription>Origen y destino inicializados en el Politécnico. Más adelante integraremos Google Maps para seleccionar ubicaciones.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Origen</label>
-                  <Input
-                    value={newRouteData.originLabel}
-                    onChange={(event) => handleNewRouteChange('originLabel', event.target.value)}
-                  />
-                  <div className="grid grid-cols-2 gap-3 text-sm text-muted-foreground">
-                    <div>Lat: {newRouteData.originLat.toFixed(6)}</div>
-                    <div>Lng: {newRouteData.originLng.toFixed(6)}</div>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Destino</label>
-                  <Input
-                    value={newRouteData.destinationLabel}
-                    onChange={(event) => handleNewRouteChange('destinationLabel', event.target.value)}
-                  />
-                  <div className="grid grid-cols-2 gap-3 text-sm text-muted-foreground">
-                    <div>Lat: {newRouteData.destinationLat.toFixed(6)}</div>
-                    <div>Lng: {newRouteData.destinationLng.toFixed(6)}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Salida</label>
-                  <Input
-                    type="datetime-local"
-                    value={newRouteData.departure}
-                    onChange={(event) => handleNewRouteChange('departure', event.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Cupos</label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={newRouteData.availableSeats}
-                    onChange={(event) => handleNewRouteChange('availableSeats', Number(event.target.value))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Precio</label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={newRouteData.price}
-                    onChange={(event) => handleNewRouteChange('price', Number(event.target.value))}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Puntos de encuentro</p>
-                    <p className="text-xs text-muted-foreground">Se inicializa con el Politécnico; se podrán agregar más puntos desde el mapa.</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="bg-slate-200 text-slate-900 hover:bg-slate-300"
-                    onClick={handleAddMeetingPoint}
-                  >
-                    Agregar punto
-                  </Button>
-                </div>
-                <div className="space-y-3">
-                  {newRouteData.meetingPoints.map((point, index) => (
-                    <div key={index} className="rounded-lg border border-slate-200 p-3 bg-slate-50">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="font-semibold">{point.label}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {point.lat.toFixed(6)}, {point.lng.toFixed(6)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-dashed border-slate-300 overflow-hidden bg-slate-50" style={{ height: '420px' }}>
-                {loadError ? (
-                  <div className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-red-700">
-                    <p>Error cargando Google Maps.</p>
-                    <p className="mt-2">Asegúrate de tener NEXT_PUBLIC_GOOGLE_MAPS_API_KEY configurada.</p>
-                  </div>
-                ) : !isLoaded ? (
-                  <div className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                    <p>Cargando mapa...</p>
-                  </div>
-                ) : (
-                  <GoogleMap
-                    mapContainerStyle={mapContainerStyle}
-                    center={mapCenter}
-                    zoom={13}
-                    onClick={handleMapClick}
-                  >
-                    <Marker
-                      position={{ lat: newRouteData.originLat, lng: newRouteData.originLng }}
-                      label="O"
-                    />
-                    <Marker
-                      position={{ lat: newRouteData.destinationLat, lng: newRouteData.destinationLng }}
-                      label="D"
-                    />
-                    {newRouteData.meetingPoints.map((point, index) => (
-                      <Marker
-                        key={index}
-                        position={{ lat: point.lat, lng: point.lng }}
-                        label={`${index + 1}`}
-                      />
-                    ))}
-                  </GoogleMap>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Button
-                  variant={activeMapTarget === 'origin' ? 'secondary' : 'ghost'}
-                  className={activeMapTarget === 'origin' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-900'}
-                  onClick={() => handleSelectMapTarget('origin')}
-                >
-                  Seleccionar origen
-                </Button>
-                <Button
-                  variant={activeMapTarget === 'destination' ? 'secondary' : 'ghost'}
-                  className={activeMapTarget === 'destination' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-900'}
-                  onClick={() => handleSelectMapTarget('destination')}
-                >
-                  Seleccionar destino
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="bg-slate-100 text-slate-900"
-                  onClick={() => handleSelectMapTarget(`meeting-${newRouteData.meetingPoints.length - 1}`)}
-                >
-                  Seleccionar último punto
-                </Button>
-              </div>
-
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                <p className="font-medium">Modo de mapa</p>
-                {activeMapTarget ? (
-                  <p className="mt-1">Haz clic en el mapa para fijar {activeMapTarget === 'origin' ? 'el origen' : activeMapTarget === 'destination' ? 'el destino' : `el ${activeMapTarget.split('-')[0]} ${Number(activeMapTarget.split('-')[1]) + 1}`}</p>
-                ) : (
-                  <p className="mt-1">Selecciona origen, destino o uno de los puntos de encuentro para editar.</p>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {newRouteData.meetingPoints.map((point, index) => (
-                  <Button
-                    key={index}
-                    variant={activeMapTarget === `meeting-${index}` ? 'secondary' : 'ghost'}
-                    className={activeMapTarget === `meeting-${index}` ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-900'}
-                    onClick={() => handleSelectMapTarget(`meeting-${index}`)}
-                  >
-                    Punto {index + 1}
-                  </Button>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  className="bg-black text-white hover:bg-black/90"
-                  onClick={handleSaveRoute}
-                  disabled={routeSaving}
-                >
-                  {routeSaving ? 'Guardando...' : 'Guardar ruta'}
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="bg-slate-200 text-slate-900 hover:bg-slate-300"
-                  onClick={handleCancelCreateRoute}
-                  disabled={routeSaving}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
+        {isCreatingRoute && (
+          <CreateRouteForm onRouteCreated={handleRouteCreated} onCancel={handleCancelCreateRoute} />
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
