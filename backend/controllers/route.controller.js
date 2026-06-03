@@ -875,57 +875,136 @@ export async function updateSolicitudStatus(req, res) {
     }
 
     if (action === 'aceptar') {
-      // BLOQUEO DE FILA para evitar race condition en cupos
-      const rutaLockResult = await connection.execute(
-        `SELECT CUPOS_DISPONIBLES_RUT FROM RUTA WHERE ID_RUT = :routeId FOR UPDATE`,
-        { routeId }
-      );
+      // 🔴 TRANSACCIÓN ATÓMICA - INICIO
+      // Desabilitar autoCommit para garantizar atomicidad
+      const previousAutoCommit = connection.autoCommit;
+      connection.autoCommit = false;
 
-      if (rutaLockResult.rows.length === 0) {
-        return res.status(404).json({ message: 'Ruta no encontrada' });
-      }
-
-      const cuposDisponiblesActuales = Number(rutaLockResult.rows[0][0]);
-      
-      if (cuposDisponiblesActuales <= 0) {
-        return res.status(409).json({ message: 'No hay cupos disponibles en esta ruta (otro conductor acaba de aceptar el último)' });
-      }
-
-      const reservedStateId = await getIdByName(connection, 'ESTADO_CUPO_RUTA', 'ID_ECU', 'NOMBRE_ECU', 'RESERVADO');
-      if (!reservedStateId) {
-        return res.status(500).json({ message: 'Estado de cupo reservado no encontrado' });
-      }
-
-      const existingCupo = await connection.execute(
-        `SELECT COUNT(*) FROM CUPO_RUTA WHERE ID_SOL_CRU = :solicitudId AND ID_RUT_CRU = :routeId`,
-        { solicitudId, routeId }
-      );
-
-      if (existingCupo.rows[0][0] === 0) {
-        await connection.execute(
-          `INSERT INTO CUPO_RUTA (
-             ID_SOL_CRU,
-             ID_RUT_CRU,
-             ID_ECU_CRU,
-             FECHA_APROBACION_CRU
-           ) VALUES (
-             :solicitudId,
-             :routeId,
-             :reservedStateId,
-             SYSDATE
-           )`,
-          { solicitudId, routeId, reservedStateId }
+      try {
+        // BLOQUEO DE FILA para evitar race condition en cupos
+        const rutaLockResult = await connection.execute(
+          `SELECT PRECIO_CUPO_RUT, CUPOS_DISPONIBLES_RUT FROM RUTA WHERE ID_RUT = :routeId FOR UPDATE`,
+          { routeId }
         );
-      }
 
-      // Decrementar cupo (con fila ya bloqueada)
-      const updateResult = await connection.execute(
-        `UPDATE RUTA SET CUPOS_DISPONIBLES_RUT = CUPOS_DISPONIBLES_RUT - 1 WHERE ID_RUT = :routeId`,
-        { routeId }
-      );
+        if (rutaLockResult.rows.length === 0) {
+          await connection.rollback();
+          connection.autoCommit = previousAutoCommit;
+          return res.status(404).json({ message: 'Ruta no encontrada' });
+        }
 
-      if (updateResult.rowsAffected === 0) {
-        return res.status(500).json({ message: 'Error al actualizar cupos de la ruta' });
+        const [precioRuta, cuposDisponiblesActuales] = rutaLockResult.rows[0];
+        
+        if (cuposDisponiblesActuales <= 0) {
+          await connection.rollback();
+          connection.autoCommit = previousAutoCommit;
+          return res.status(409).json({ message: 'No hay cupos disponibles en esta ruta (otro conductor acaba de aceptar el último)' });
+        }
+
+        // Obtener documento del pasajero para cartera
+        const pasajeroDocResult = await connection.execute(
+          `SELECT DOCUMENTO_USU_UPE FROM USUARIO_PERFIL WHERE ID_UPE = 
+           (SELECT ID_UPE_SOL FROM SOLICITUD_CUPO WHERE ID_SOL = :solicitudId)`,
+          { solicitudId }
+        );
+
+        if (!pasajeroDocResult.rows || pasajeroDocResult.rows.length === 0) {
+          await connection.rollback();
+          connection.autoCommit = previousAutoCommit;
+          return res.status(400).json({ message: 'No se encontró el pasajero' });
+        }
+
+        const docPasajero = pasajeroDocResult.rows[0][0];
+
+        const reservedStateId = await getIdByName(connection, 'ESTADO_CUPO_RUTA', 'ID_ECU', 'NOMBRE_ECU', 'RESERVADO');
+        if (!reservedStateId) {
+          await connection.rollback();
+          connection.autoCommit = previousAutoCommit;
+          return res.status(500).json({ message: 'Estado de cupo reservado no encontrado' });
+        }
+
+        const existingCupo = await connection.execute(
+          `SELECT COUNT(*) FROM CUPO_RUTA WHERE ID_SOL_CRU = :solicitudId AND ID_RUT_CRU = :routeId`,
+          { solicitudId, routeId }
+        );
+
+        if (existingCupo.rows[0][0] === 0) {
+          await connection.execute(
+            `INSERT INTO CUPO_RUTA (
+               ID_SOL_CRU,
+               ID_RUT_CRU,
+               ID_ECU_CRU,
+               FECHA_APROBACION_CRU
+             ) VALUES (
+               :solicitudId,
+               :routeId,
+               :reservedStateId,
+               SYSDATE
+             )`,
+            { solicitudId, routeId, reservedStateId },
+            { autoCommit: false }
+          );
+        }
+
+        // Decrementar cupo (con fila ya bloqueada)
+        const updateResult = await connection.execute(
+          `UPDATE RUTA SET CUPOS_DISPONIBLES_RUT = CUPOS_DISPONIBLES_RUT - 1 WHERE ID_RUT = :routeId`,
+          { routeId },
+          { autoCommit: false }
+        );
+
+        if (updateResult.rowsAffected === 0) {
+          await connection.rollback();
+          connection.autoCommit = previousAutoCommit;
+          return res.status(500).json({ message: 'Error al actualizar cupos de la ruta' });
+        }
+
+        // 💰 NUEVO: REGISTRAR TRANSACCIÓN EN CARTERA (DÉBITO)
+        // Primero obtener el saldo actual del usuario
+        const userBalanceRes = await connection.execute(
+          `SELECT SALDO_CARTERA_USU FROM USUARIO WHERE DOCUMENTO_USU = :doc`,
+          { doc: docPasajero }
+        );
+        const currentBalance = Number(userBalanceRes.rows[0][0]);
+        const newBalance = currentBalance - Number(precioRuta);
+        
+        await connection.execute(
+          `INSERT INTO TRANSACCIONES_CARTERA 
+           (ID_TRA, DOCUMENTO_USU_TRA, ID_TTR_TRA, MONTO_TRA, SALDO_RESULTANTE_TRA, FECHA_REALIZACION_TRA)
+           VALUES (SEQ_TRANSACCIONES_CARTERA.NEXTVAL, :doc, 2, :monto, :newBalance, SYSDATE)`,
+          { doc: docPasajero, monto: Number(precioRuta), newBalance },
+          { autoCommit: false }
+        );
+
+        // 💰 NUEVO: ACTUALIZAR SALDO DEL USUARIO
+        const saldoUpdateResult = await connection.execute(
+          `UPDATE USUARIO SET SALDO_CARTERA_USU = SALDO_CARTERA_USU - :monto 
+           WHERE DOCUMENTO_USU = :doc`,
+          { monto: Number(precioRuta), doc: docPasajero },
+          { autoCommit: false }
+        );
+
+        if (saldoUpdateResult.rowsAffected === 0) {
+          await connection.rollback();
+          connection.autoCommit = previousAutoCommit;
+          return res.status(400).json({ message: 'No se pudo actualizar el saldo del pasajero' });
+        }
+
+        // ✅ COMMIT: TODAS LAS OPERACIONES EXITOSAS
+        await connection.commit();
+        connection.autoCommit = previousAutoCommit;
+        console.log(`[✓] Transacción atómica completada: Solicitud ${solicitudId} aceptada, cartera debitada`);
+
+      } catch (transactionError) {
+        // 🔄 ROLLBACK AUTOMÁTICO si hay error
+        try {
+          await connection.rollback();
+          console.error(`[ROLLBACK] Error en transacción: ${transactionError.message}`);
+        } catch (rollbackErr) {
+          console.error(`[ERROR] Fallo al hacer ROLLBACK: ${rollbackErr.message}`);
+        }
+        connection.autoCommit = previousAutoCommit;
+        throw transactionError;
       }
     }
 

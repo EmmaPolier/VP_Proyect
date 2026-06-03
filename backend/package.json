@@ -22,6 +22,7 @@
     "dotenv": "latest",
     "express": "latest",
     "jsonwebtoken": "latest",
+    "node-fetch": "^2.7.0",
     "nodemailer": "latest",
     "oracledb": "^6.10.0"
   }
