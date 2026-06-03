@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { initializePool, closePool } from './db.js';
+import { initializePool, closePool, getConnection } from './db.js';
 
 // Importar controladores directamente
 import { register, verify, login, forgotPassword, resetPassword, switchRole } from './controllers/auth.controller.js';
@@ -12,6 +12,7 @@ import adminRoutes from './routes/admin/index.js';
 import routeRoutes from './routes/route.routes.js';
 import carteraRoutes from './routes/cartera.routes.js';
 import calificacionRoutes from './routes/calificacion.routes.js';
+import historialRoutes from './routes/historial.routes.js';
 
 // Cargar .env.local primero, luego .env (para sobreescrituras locales)
 dotenv.config({ path: '.env.local' });
@@ -43,6 +44,39 @@ app.post('/forgot-password', forgotPassword);
 app.post('/reset-password', resetPassword);
 app.post('/switch-role', authMiddleware, switchRole);  // ← Requiere autenticación
 
+// ============================================================================
+// TESTING ENDPOINTS (DEVELOPMENT ONLY - REMOVE IN PRODUCTION)
+// ============================================================================
+
+app.post('/admin/verify-user-testing', async (req, res) => {
+  const { email } = req.body;
+  let connection;
+  try {
+    console.log(`[VERIFY-TEST] Verificando usuario: ${email}`);
+    
+    connection = await getConnection();
+    console.log(`[VERIFY-TEST] Conexión obtenida`);
+    
+    const result = await connection.execute(
+      `UPDATE USUARIO SET ID_EST_USU = 1 WHERE CORREO_USU = :email`,
+      { email },
+      { autoCommit: true }
+    );
+    console.log(`[VERIFY-TEST] Update result:`, result);
+    
+    res.json({ 
+      message: 'Usuario verificado para testing', 
+      email,
+      rowsAffected: result.rowsAffected 
+    });
+  } catch (err) {
+    console.error(`[VERIFY-TEST] Error:`, err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) await connection.close();
+  }
+});
+
 // Rutas de menú
 app.use('/menu', menuRoutes);
 
@@ -54,6 +88,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/cartera', carteraRoutes);
 app.use('/api/calificaciones', calificacionRoutes);
+app.use('/api', historialRoutes);
 
 // ============================================================================
 // HEALTH CHECK

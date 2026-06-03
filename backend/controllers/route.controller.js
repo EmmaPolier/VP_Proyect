@@ -227,6 +227,9 @@ export async function createRoute(req, res) {
       return res.status(400).json({ message: 'Datos incompletos de la ruta' });
     }
 
+    // Convertir formato ISO string a formato Oracle
+    const departureFormatted = departure.replace('T', ' ');
+
     connection = await getConnection();
     const driverProfileId = await getProfileId(connection, documento, 2);
 
@@ -275,7 +278,7 @@ export async function createRoute(req, res) {
          :originLng,
          :destinationLat,
          :destinationLng,
-         TO_TIMESTAMP(:departure, 'YYYY-MM-DD"T"HH24:MI'),
+         TO_TIMESTAMP(:departure, 'YYYY-MM-DD HH24:MI:SS'),
          :availableSeats,
          :availableSeats,
          :price,
@@ -283,7 +286,8 @@ export async function createRoute(req, res) {
          SYSDATE,
          SYSDATE
        )`,
-      { driverProfileId, vehicleId, activeStateId, originLat, originLng, destinationLat, destinationLng, departure, availableSeats, price }
+      { driverProfileId, vehicleId, activeStateId, originLat, originLng, destinationLat, destinationLng, departure: departureFormatted, availableSeats, price },
+      { autoCommit: true }
     );
 
     const sequenceResult = await connection.execute(`SELECT SEQ_RUTA.CURRVAL FROM DUAL`);
@@ -310,21 +314,14 @@ export async function createRoute(req, res) {
              :lng,
              :orden
            )`,
-          { routeId, lat: point.lat, lng: point.lng, orden: index + 1 }
+          { routeId, lat: point.lat, lng: point.lng, orden: index + 1 },
+          { autoCommit: true }
         );
       }
     }
 
-    await connection.commit();
     successResponse(res, { routeId }, 'Ruta creada exitosamente', 201);
   } catch (error) {
-    if (connection) {
-      try {
-        await connection.rollback();
-      } catch (rollbackError) {
-        console.error('Error al hacer rollback:', rollbackError);
-      }
-    }
     errorResponse(res, error, 'Error al crear ruta', 500);
   } finally {
     if (connection) await connection.close();
@@ -333,7 +330,7 @@ export async function createRoute(req, res) {
 
 export async function createSolicitud(req, res) {
   const routeId = Number(req.params.id);
-  const { paymentMethod = 'CARTERA_VIRTUAL', amount } = req.body;
+  const { paymentMethod = 'CARTERA_VIRTUAL', amount, punto_encuentro = '' } = req.body;
   const documento = req.user?.documento;
 
   let connection;
@@ -341,6 +338,14 @@ export async function createSolicitud(req, res) {
   try {
     if (!documento) {
       return res.status(401).json({ message: 'Usuario no autenticado' });
+    }
+
+    // T6.3: Validar punto_encuentro enum
+    const validMeetingPoints = ['Centro Comercial', 'Estación', 'Parque', 'Biblioteca', 'Centro Cívico'];
+    if (punto_encuentro && !validMeetingPoints.includes(punto_encuentro)) {
+      return res.status(400).json({ 
+        message: `Punto de encuentro inválido. Opciones válidas: ${validMeetingPoints.join(', ')}`
+      });
     }
 
     connection = await getConnection();
@@ -353,7 +358,8 @@ export async function createSolicitud(req, res) {
          r.PRECIO_CUPO_RUT,
          NVL(u.CORREO_USU, '') AS DRIVER_EMAIL,
          NVL(u.NOMBRES_USU, '') AS DRIVER_NAME,
-         NVL(u.PRIMER_APELLIDO_USU, '') AS DRIVER_LASTNAME
+         NVL(u.PRIMER_APELLIDO_USU, '') AS DRIVER_LASTNAME,
+         NVL(u.DOCUMENTO_USU, '') AS DRIVER_DOCUMENTO
        FROM RUTA r
        LEFT JOIN USUARIO_PERFIL up ON up.ID_UPE = r.ID_UPE_RUT
        LEFT JOIN USUARIO u ON u.DOCUMENTO_USU = up.DOCUMENTO_USU_UPE
@@ -365,7 +371,13 @@ export async function createSolicitud(req, res) {
       return res.status(404).json({ message: 'Ruta no encontrada' });
     }
 
-    const [idRut, availableSeats, idEstado, routePrice, driverEmail, driverFirstName, driverLastName] = routeResult.rows[0];
+    const [idRut, availableSeats, idEstado, routePrice, driverEmail, driverFirstName, driverLastName, driverDocumento] = routeResult.rows[0];
+    
+    // T6.1: Validar que pasajero ≠ conductor
+    if (documento === driverDocumento) {
+      return res.status(400).json({ message: 'No puedes solicitar cupo en tu propia ruta' });
+    }
+
     const statusResult = await connection.execute(
       `SELECT NOMBRE_ERU FROM ESTADO_RUTA WHERE ID_ERU = :idEstado`,
       { idEstado }
@@ -448,8 +460,13 @@ export async function createSolicitud(req, res) {
          :monto,
          SYSDATE
        )`,
-      { passengerProfileId, routeId, estadoPendienteId, metodoPagoId, monto }
+      { passengerProfileId, routeId, estadoPendienteId, metodoPagoId, monto },
+      { autoCommit: true }
     );
+
+    // Obtener el ID de la solicitud creada
+    const sequenceResult = await connection.execute(`SELECT SEQ_SOLICITUD_CUPO.CURRVAL FROM DUAL`);
+    const solicitudId = sequenceResult.rows.length ? sequenceResult.rows[0][0] : null;
 
     const driverFullName = `${driverFirstName} ${driverLastName}`.trim() || 'Conductor';
 
@@ -473,7 +490,7 @@ export async function createSolicitud(req, res) {
       }
     }
 
-    successResponse(res, { routeId, passengerProfileId, paymentMethod, amount: monto }, 'Solicitud de cupo creada exitosamente', 201);
+    successResponse(res, { solicitudId, routeId, passengerProfileId, paymentMethod, amount: monto }, 'Solicitud de cupo creada exitosamente', 201);
   } catch (error) {
     errorResponse(res, error, 'Error al crear solicitud', 500);
   } finally {
@@ -501,7 +518,8 @@ export async function cancelSolicitud(req, res) {
     const result = await connection.execute(
       `SELECT
          s.ID_SOL,
-         s.ID_ESO_SOL
+         s.ID_ESO_SOL,
+         s.ID_RUT_SOL
        FROM SOLICITUD_CUPO s
        WHERE s.ID_SOL = :solicitudId
          AND s.ID_UPE_SOL = :passengerProfileId`,
@@ -512,7 +530,7 @@ export async function cancelSolicitud(req, res) {
       return res.status(404).json({ message: 'Solicitud no encontrada' });
     }
 
-    const [idSol, currentStatusId] = result.rows[0];
+    const [idSol, currentStatusId, routeId] = result.rows[0];
     const currentStatusResult = await connection.execute(
       `SELECT NOMBRE_ESO FROM ESTADO_SOLICITUD WHERE ID_ESO = :statusId`,
       { statusId: currentStatusId }
@@ -529,9 +547,18 @@ export async function cancelSolicitud(req, res) {
       return res.status(500).json({ message: 'Estado de cancelación no encontrado' });
     }
 
+    // T6.4: Reversar cupos disponibles (incrementar en 1)
+    await connection.execute(
+      `UPDATE RUTA SET CUPOS_DISPONIBLES_RUT = CUPOS_DISPONIBLES_RUT + 1 
+       WHERE ID_RUT = :routeId`,
+      { routeId },
+      { autoCommit: true }
+    );
+
     await connection.execute(
       `UPDATE SOLICITUD_CUPO SET ID_ESO_SOL = :cancelStatusId WHERE ID_SOL = :solicitudId`,
-      { cancelStatusId, solicitudId }
+      { cancelStatusId, solicitudId },
+      { autoCommit: true }
     );
 
     const passengerEmail = await connection.execute(
@@ -1241,12 +1268,8 @@ export async function finalizeRoute(req, res) {
       await connection.execute(`UPDATE RUTA SET ID_EST_RUT = :completedStateId WHERE ID_RUT = :routeId`, { completedStateId, routeId });
     }
 
-    await connection.commit();
     successResponse(res, { routeId, chargedTotal: totalToDriver }, 'Ruta finalizada y cobros aplicados');
   } catch (error) {
-    if (connection) {
-      try { await connection.rollback(); } catch (e) { console.error('Rollback failed', e); }
-    }
     console.error('[ERROR] Error al finalizar ruta:', error);
     // Retornar mensaje amigable sin exponer stack traces
     return res.status(500).json({ success: false, message: 'Error al finalizar la ruta. Por favor intenta de nuevo.' });
