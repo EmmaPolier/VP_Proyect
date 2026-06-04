@@ -101,7 +101,9 @@ export function LoginForm({
         }))
       }
 
-      router.push("/dashboard")
+      // Redirigir a admin/catalogs si es administrador
+      const isAdmin = response.data.id_perfil === 3
+      router.push(isAdmin ? "/admin/catalogs" : "/dashboard")
     } catch (err: any) {
       console.error("Error:", err)
       if (err.response?.data?.message) {
@@ -149,7 +151,9 @@ export function LoginForm({
         }))
       }
 
-      router.push("/dashboard")
+      // Redirigir a admin/catalogs si es administrador
+      const isAdmin = response.data.id_perfil === 3
+      router.push(isAdmin ? "/admin/catalogs" : "/dashboard")
     } catch (err: any) {
       console.error("Error:", err)
       setError("Error al cambiar perfil")

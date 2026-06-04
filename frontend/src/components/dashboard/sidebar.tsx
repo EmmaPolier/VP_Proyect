@@ -197,6 +197,13 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
   }
 
   const handleMenuClick = (item: MenuItem) => {
+    // Para admin: navegar directamente a las rutas /admin/*
+    if (isAdmin && item.url.startsWith('/admin/')) {
+      router.replace(item.url)
+      return
+    }
+
+    // Para driver y passenger: usar el sistema de query parameters en el dashboard
     const section = normalizeMenuUrl(item.url)
     if (section) {
       router.replace(`${getDashboardBasePath()}?section=${section}`)
