@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import axios from "axios"
+import { apiClient } from "@/lib/api-client"
+import { API_BASE_URL } from "@/lib/api-constants"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -21,7 +22,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
+const API_URL = API_BASE_URL
 
 interface Brand {
   id: number
@@ -95,12 +96,12 @@ export function VehicleRegistrationForm({
   const loadCatalogData = async () => {
     try {
       const [brandsRes, colorsRes] = await Promise.all([
-        axios.get(`${API_URL}/vehicles/brands`),
-        axios.get(`${API_URL}/vehicles/colors`)
+        apiClient.get(`${API_URL}/vehicles/brands`),
+        apiClient.get(`${API_URL}/vehicles/colors`)
       ])
 
-      setBrands(brandsRes.data.brands)
-      setColors(colorsRes.data.colors)
+      setBrands(brandsRes.data?.brands || [])
+      setColors(colorsRes.data?.colors || [])
       setIsLoadingData(false)
     } catch (err: any) {
       console.error("Error cargando catálogos:", err)
@@ -124,8 +125,8 @@ export function VehicleRegistrationForm({
     }
 
     try {
-      const response = await axios.get(`${API_URL}/vehicles/models?brandId=${brandId}`)
-      setModels(response.data.models)
+      const response = await apiClient.get(`${API_URL}/vehicles/models`, { brandId: parseInt(brandId) })
+      setModels(response.data?.models || [])
     } catch (err: any) {
       console.error("Error cargando modelos:", err)
       setError("Error al cargar modelos disponibles")
@@ -166,7 +167,7 @@ export function VehicleRegistrationForm({
         return
       }
 
-      await axios.post(`${API_URL}/vehicles`, {
+      await apiClient.post(`${API_URL}/vehicles`, {
         driverId,
         brandId: parseInt(formData.brandId),
         modelId: parseInt(formData.modelId),
@@ -181,10 +182,8 @@ export function VehicleRegistrationForm({
       router.push("/auth")
     } catch (err: any) {
       console.error("Error en registro:", err)
-      if (err.response?.data?.error) {
-        setError(err.response.data.error)
-      } else if (err.response?.data?.message) {
-        setError(err.response.data.message)
+      if (err instanceof Error && err.message) {
+        setError(err.message)
       } else {
         setError("Error al registrar el vehículo. Intenta nuevamente.")
       }

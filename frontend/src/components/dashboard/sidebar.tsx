@@ -171,7 +171,7 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
       if (normalized.includes('/requests') || normalized.includes('solicitudes')) return 'driver-requests'
       if (normalized.includes('/wallet') || normalized.includes('cartera')) return 'driver-wallet'
       if (normalized.includes('/profile') || normalized.includes('perfil')) return 'driver-profile'
-      if (normalized.includes('/settings') || normalized.includes('configuracion')) return 'driver-configuration'
+      if (normalized.includes('/settings') || normalized.includes('configuracion')) return 'driver-settings'
       // Historial de viajes / mis rutas
       if (normalized.includes('/history') || normalized.includes('historial')) return 'driver-travel-history'
       // Vehículos asociados al conductor

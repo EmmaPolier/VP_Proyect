@@ -20,7 +20,12 @@ export async function getBrands(req, res) {
       nombre: row[1]
     }));
 
-    return res.json({ brands });
+    return res.json({ 
+      success: true,
+      message: 'Marcas obtenidas correctamente',
+      data: { brands },
+      timestamp: new Date().toISOString()
+    });
   } catch (err) {
     console.error('[ERROR] Error en getBrands:', err);
     if (connection) await connection.close();
@@ -42,7 +47,7 @@ export async function getModelsByBrand(req, res) {
 
     // Obtener modelos que pertenecen a esta marca a través de MARCA_MODELO_VEH
     const result = await connection.execute(
-      `SELECT DISTINCT m.ID_MOD, m.NOMBRE_MOD 
+      `SELECT DISTINCT m.ID_MOD, m.NOMBRE_MOD, m.ANIO_MOD
        FROM MODELO_VEHICULO m
        INNER JOIN MARCA_MODELO_VEH mm ON m.ID_MOD = mm.ID_MOD_MMV
        WHERE mm.ID_MAR_MMV = :brandId
@@ -54,10 +59,16 @@ export async function getModelsByBrand(req, res) {
 
     const models = result.rows.map(row => ({
       id: row[0],
-      nombre: row[1]
+      nombre: row[1],
+      año: row[2]
     }));
 
-    return res.json({ models });
+    return res.json({ 
+      success: true,
+      message: 'Modelos obtenidos correctamente',
+      data: { models },
+      timestamp: new Date().toISOString()
+    });
   } catch (err) {
     console.error('[ERROR] Error en getModelsByBrand:', err);
     if (connection) await connection.close();
@@ -155,7 +166,12 @@ export async function getColors(req, res) {
       nombre: row[1]
     }));
 
-    return res.json({ colors });
+    return res.json({ 
+      success: true,
+      message: 'Colores obtenidos correctamente',
+      data: { colors },
+      timestamp: new Date().toISOString()
+    });
   } catch (err) {
     console.error('[ERROR] Error en getColors:', err);
     if (connection) await connection.close();

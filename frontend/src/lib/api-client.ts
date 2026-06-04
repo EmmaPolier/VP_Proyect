@@ -34,13 +34,22 @@ class ApiClient {
     }
 
     try {
-      const stored = window.localStorage.getItem('currentUser')
-      if (!stored) {
-        return null
+      // Buscar primero en currentUser (nueva estructura)
+      const currentUserStr = window.localStorage.getItem('currentUser')
+      if (currentUserStr) {
+        const parsed = JSON.parse(currentUserStr)
+        if (parsed?.token) {
+          return parsed.token
+        }
       }
-
-      const parsed = JSON.parse(stored)
-      return parsed?.token ?? null
+      
+      // Fallback: buscar en authToken (backward compatibility)
+      const authToken = window.localStorage.getItem('authToken')
+      if (authToken) {
+        return authToken
+      }
+      
+      return null
     } catch {
       return null
     }

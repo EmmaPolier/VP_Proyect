@@ -14,6 +14,7 @@ import carteraRoutes from './routes/cartera.routes.js';
 import calificacionRoutes from './routes/calificacion.routes.js';
 import historialRoutes from './routes/historial.routes.js';
 import usuarioRoutes from './routes/usuario.routes.js';
+import perfilRoutes from './routes/perfil.routes.js';
 import bcryptjs from 'bcryptjs';
 
 // Cargar .env.local primero, luego .env (para sobreescrituras locales)
@@ -293,6 +294,13 @@ app.post('/api/test-data/setup', async (req, res) => {
   }
 });
 
+// ============================================================================
+// TEST ENDPOINT (DEVELOPMENT ONLY)
+// ============================================================================
+app.get('/api/test-vehicles', (req, res) => {
+  res.json({ message: 'Test endpoint works', timestamp: new Date().toISOString() });
+});
+
 // Rutas de menú
 app.use('/menu', menuRoutes);
 
@@ -307,6 +315,7 @@ app.use('/users', usuarioRoutes);  // Mantener para compatibilidad
 app.use('/api/admin', adminRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/cartera', carteraRoutes);
+app.use('/api/perfil', perfilRoutes);
 app.use('/api/calificaciones', calificacionRoutes);
 app.use('/api', historialRoutes);
 

@@ -22,8 +22,11 @@ import { API_ENDPOINTS } from "@/lib/api-constants"
 import RatingModal from "../rating-modal"
 import CreateRouteForm from "./driver/create-route-form"
 import ViewRoutesMap from "./passenger/view-routes-map"
-import { DriverVehicles } from "./driver/driver-vehicles"
+import { VehiclesList } from "./driver/vehicles-list"
 import { DriverTravelHistory } from "./driver/driver-travel-history"
+import { DriverWallet } from "./driver/driver-wallet"
+import { DriverProfile } from "./driver/driver-profile"
+import { DriverSettings } from "./driver/driver-settings"
 
 interface DashboardContentProps {
   userType?: "passenger" | "driver" | "admin"
@@ -1309,7 +1312,7 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
         {/* MIS VEHICULOS SECTION */}
         {driverSection === 'driver-my-vehicles' && (
           <div id="driver-my-vehicles">
-            <DriverVehicles />
+            <VehiclesList />
           </div>
         )}
 
@@ -1322,54 +1325,23 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
 
         {/* CARTERA SECTION */}
         {driverSection === 'driver-wallet' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Cartera virtual</CardTitle>
-              <CardDescription>Gestiona tu saldo y visualiza el historial de transacciones</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <p className="text-sm text-muted-foreground">Saldo actual</p>
-                  <p className="text-3xl font-bold text-green-600">
-                    {walletLoading ? 'Cargando...' : `$ ${walletBalance?.toFixed(0) ?? 0}`}
-                  </p>
-                </div>
-              </div>
+          <div id="driver-wallet">
+            <DriverWallet />
+          </div>
+        )}
 
-              <div>
-                <h3 className="text-lg font-semibold">Historial de transacciones</h3>
-                {walletHistoryLoading ? (
-                  <p className="text-sm text-muted-foreground">Cargando historial...</p>
-                ) : walletHistory.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead>Monto</TableHead>
-                        <TableHead>Saldo</TableHead>
-                        <TableHead>Fecha</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {walletHistory.map((tx) => (
-                        <TableRow key={tx.id}>
-                          <TableCell>{tx.id}</TableCell>
-                          <TableCell>{tx.tipoNombre}</TableCell>
-                          <TableCell>${tx.monto}</TableCell>
-                          <TableCell>${tx.saldoResultante}</TableCell>
-                          <TableCell>{tx.fecha}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No hay transacciones registradas.</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+        {/* MI PERFIL SECTION */}
+        {driverSection === 'driver-profile' && (
+          <div id="driver-profile">
+            <DriverProfile />
+          </div>
+        )}
+
+        {/* CONFIGURACION SECTION */}
+        {driverSection === 'driver-settings' && (
+          <div id="driver-settings">
+            <DriverSettings />
+          </div>
         )}
 
       {ratingModalElement}

@@ -1,11 +1,12 @@
 import express from 'express';
-import { registerVehicle } from '../controllers/vehicle.controller.js';
+import { registerVehicle, getVehicles, deleteVehicle } from '../controllers/vehicle.controller.js';
 import { getBrands, getModelsByBrand, createModel, getColors } from '../controllers/brand-model.controller.js';
+import { authMiddleware } from '../middlewares/auth.middleware.js';
 
 const router = express.Router();
 
 // ============================================================================
-// RUTAS DE CATÁLOGOS (MARCA, MODELO, COLOR)
+// RUTAS DE CATÁLOGOS (MARCA, MODELO, COLOR) - SIN AUTENTICACIÓN
 // ============================================================================
 
 // GET todas las marcas
@@ -21,10 +22,16 @@ router.post('/models', createModel);
 router.get('/colors', getColors);
 
 // ============================================================================
-// RUTAS DE REGISTRO DE VEHÍCULOS
+// RUTAS DE VEHÍCULOS - CON AUTENTICACIÓN
 // ============================================================================
 
+// GET /vehicles - Obtener vehículos del conductor autenticado
+router.get('/', authMiddleware, getVehicles);
+
 // POST /vehicles - Registrar nuevo vehículo
-router.post('/', registerVehicle);
+router.post('/', authMiddleware, registerVehicle);
+
+// DELETE /vehicles/:id - Eliminar vehículo
+router.delete('/:id', authMiddleware, deleteVehicle);
 
 export default router;

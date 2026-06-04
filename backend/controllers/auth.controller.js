@@ -787,8 +787,9 @@ export async function switchRole(req, res) {
 
 export async function deleteAccount(req, res) {
   const documento = req.user?.documento;
+  const perfil = req.user?.perfil; // Perfil (ID) del JWT
 
-  console.log('[INFO] Delete account solicitado para:', documento);
+  console.log('[DELETE-ACCOUNT] Iniciando eliminación de cuenta para:', documento, 'Perfil:', perfil);
 
   let connection;
   try {
@@ -798,151 +799,260 @@ export async function deleteAccount(req, res) {
     }
 
     connection = await getConnection();
-
-    // Verificar que el usuario existe
-    const userResult = await connection.execute(
-      `SELECT DOCUMENTO_USU FROM USUARIO WHERE DOCUMENTO_USU = :documento`,
-      { documento }
-    );
-
-    if (!userResult.rows || userResult.rows.length === 0) {
-      await connection.close();
-      console.error('[ERROR] Usuario no encontrado para eliminación:', documento);
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
+    connection.autoCommit = false; // Desactivar autocommit para transacción
 
     try {
-      // Eliminar en orden correcto para respetar FK constraints
-      // Nota: Cada DELETE será autocommit por defecto en Oracle
+      // Verificar que el usuario existe
+      const userResult = await connection.execute(
+        `SELECT DOCUMENTO_USU FROM USUARIO WHERE DOCUMENTO_USU = :documento`,
+        { documento }
+      );
+
+      if (!userResult.rows || userResult.rows.length === 0) {
+        await connection.close();
+        console.error('[DELETE-ACCOUNT] Usuario no encontrado:', documento);
+        return res.status(404).json({ error: 'Usuario no encontrado' });
+      }
+
+      // ========== PASO 1: Obtener TODOS los USUARIO_PERFIL de este usuario ==========
+      console.log('[DELETE-ACCOUNT] Paso 1: Obteniendo todos USUARIO_PERFIL...');
+      const allPerfilesResult = await connection.execute(
+        `SELECT ID_UPE, ID_PER_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento`,
+        { documento }
+      );
+      const allPerfils = allPerfilesResult.rows ? allPerfilesResult.rows : [];
+      const totalPerfiles = allPerfils.length;
       
-      console.log('[INFO] Eliminando datos dependientes...');
+      console.log('[DELETE-ACCOUNT] Total de perfiles:', totalPerfiles);
+      console.log('[DELETE-ACCOUNT] Todos los perfiles:', allPerfils);
+
+      // Obtener el ID_UPE del perfil actual (que se está eliminando)
+      const currentProfileResult = await connection.execute(
+        `SELECT ID_UPE FROM USUARIO_PERFIL 
+         WHERE DOCUMENTO_USU_UPE = :documento AND ID_PER_UPE = :perfil`,
+        { documento, perfil }
+      );
       
-      // 1. Eliminar CALIFICACION (usa SOL_ID_CAL, RUT_ID_CAL)
-      console.log('[INFO] Eliminando CALIFICACION...');
-      await connection.execute(
-        `DELETE FROM CALIFICACION 
-         WHERE SOL_ID_CAL IN (
-           SELECT ID_SOL FROM SOLICITUD_CUPO
-           WHERE ID_UPE_SOL IN (
-             SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
-           )
-         )`,
-        { documento }
-      );
+      let currentUPE = null;
+      if (currentProfileResult.rows && currentProfileResult.rows.length > 0) {
+        currentUPE = currentProfileResult.rows[0][0];
+        console.log('[DELETE-ACCOUNT] ID_UPE del perfil actual:', currentUPE);
+      }
 
-      // 2. Eliminar HISTORIAL_VIAJE (usa SOL_ID_HIS, RUT_ID_HIS)
-      console.log('[INFO] Eliminando HISTORIAL_VIAJE...');
-      await connection.execute(
-        `DELETE FROM HISTORIAL_VIAJE 
-         WHERE SOL_ID_HIS IN (
-           SELECT ID_SOL FROM SOLICITUD_CUPO
-           WHERE ID_UPE_SOL IN (
-             SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
-           )
-         )`,
-        { documento }
-      );
+      // ========== DECISIÓN: ¿Eliminar solo perfil o usuario completo? ==========
+      const deleteEntireUser = totalPerfiles === 1;
+      console.log('[DELETE-ACCOUNT] ¿Eliminar usuario completo?', deleteEntireUser ? 'SÍ (1 perfil)' : 'NO (múltiples perfiles)');
+      console.log('[DELETE-ACCOUNT] DEBUG: totalPerfiles=' + totalPerfiles + ', deleteEntireUser=' + deleteEntireUser);
+      console.log('[DELETE-ACCOUNT] DEBUG: typeof totalPerfiles=' + typeof totalPerfiles + ', totalPerfiles===1 =' + (totalPerfiles === 1));
 
-      // 3. Eliminar SOLICITUD_CUPO (que referencia USUARIO_PERFIL)
-      console.log('[INFO] Eliminando SOLICITUD_CUPO...');
-      await connection.execute(
-        `DELETE FROM SOLICITUD_CUPO 
-         WHERE ID_UPE_SOL IN (
-           SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
-         )`,
-        { documento }
-      );
+      // Array de perfiles a eliminar
+      let userPerfils = [];
+      if (deleteEntireUser) {
+        // Eliminar todos los perfiles
+        userPerfils = allPerfils.map(r => r[0]);
+      } else {
+        // Eliminar solo el perfil actual
+        userPerfils = currentUPE ? [currentUPE] : [];
+      }
+      
+      console.log('[DELETE-ACCOUNT] Perfiles a eliminar:', userPerfils);
 
-      // 4. Eliminar CUPO_RUTA (que referencia RUTA)
-      console.log('[INFO] Eliminando CUPO_RUTA...');
-      await connection.execute(
-        `DELETE FROM CUPO_RUTA 
-         WHERE ID_RUT_CRU IN (
-           SELECT ID_RUT FROM RUTA 
-           WHERE ID_UPE_RUT IN (
-             SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
-           )
-         )`,
-        { documento }
-      );
+      // ========== PASO 2: ESTRATEGIA NUCLEAR - Eliminar CUPO_RUTA del perfil ==========
+      console.log('[DELETE-ACCOUNT] Paso 2: ESTRATEGIA NUCLEAR - Eliminar CUPO_RUTA...');
+      
+      if (userPerfils.length > 0) {
+        // PRIMERO: Eliminar CUPO_RUTA por SOLICITUD_CUPO del perfil
+        console.log('[DELETE-ACCOUNT] 2.1: Eliminando CUPO_RUTA por solicitudes del perfil...');
+        await connection.execute(
+          `DELETE FROM CUPO_RUTA 
+           WHERE ID_SOL_CRU IN (
+             SELECT ID_SOL FROM SOLICITUD_CUPO
+             WHERE ID_UPE_SOL IN (${userPerfils.map((_, i) => `:upid${i}`).join(',')})
+           )`,
+          userPerfils.reduce((obj, val, i) => ({ ...obj, [`upid${i}`]: val }), {})
+        );
 
-      // 5. Eliminar PUNTO_ENCUENTRO (que referencia RUTA)
-      console.log('[INFO] Eliminando PUNTO_ENCUENTRO...');
-      await connection.execute(
-        `DELETE FROM PUNTO_ENCUENTRO 
-         WHERE ID_RUT_PEN IN (
-           SELECT ID_RUT FROM RUTA 
-           WHERE ID_UPE_RUT IN (
-             SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
-           )
-         )`,
-        { documento }
-      );
+        // SEGUNDO: Eliminar CUPO_RUTA por RUTA del perfil
+        console.log('[DELETE-ACCOUNT] 2.2: Eliminando CUPO_RUTA por rutas del perfil...');
+        await connection.execute(
+          `DELETE FROM CUPO_RUTA 
+           WHERE ID_RUT_CRU IN (
+             SELECT ID_RUT FROM RUTA 
+             WHERE ID_UPE_RUT IN (${userPerfils.map((_, i) => `:upid${i}`).join(',')})
+           )`,
+          userPerfils.reduce((obj, val, i) => ({ ...obj, [`upid${i}`]: val }), {})
+        );
 
-      // 6. Eliminar RUTA (que referencia USUARIO_PERFIL)
-      console.log('[INFO] Eliminando RUTA...');
-      await connection.execute(
-        `DELETE FROM RUTA 
-         WHERE ID_UPE_RUT IN (
-           SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
-         )`,
-        { documento }
-      );
+        // TERCERO: Eliminar CUPO_RUTA por SOLICITUD_CUPO en rutas del perfil
+        console.log('[DELETE-ACCOUNT] 2.3: Eliminando CUPO_RUTA por solicitudes en rutas del perfil...');
+        await connection.execute(
+          `DELETE FROM CUPO_RUTA 
+           WHERE ID_SOL_CRU IN (
+             SELECT ID_SOL FROM SOLICITUD_CUPO SC
+             WHERE SC.ID_RUT_SOL IN (
+               SELECT ID_RUT FROM RUTA 
+               WHERE ID_UPE_RUT IN (${userPerfils.map((_, i) => `:upid${i}`).join(',')})
+             )
+           )`,
+          userPerfils.reduce((obj, val, i) => ({ ...obj, [`upid${i}`]: val }), {})
+        );
+      }
+      console.log('[DELETE-ACCOUNT] CUPO_RUTA eliminados');
 
-      // 7. Eliminar VEHICULO (que referencia USUARIO)
-      console.log('[INFO] Eliminando VEHICULO...');
-      await connection.execute(
-        `DELETE FROM VEHICULO WHERE DOCUMENTO_USU_VEH = :documento`,
-        { documento }
-      );
+      // ========== PASO 3: Eliminar PUNTO_ENCUENTRO (solo del perfil eliminado) ==========
+      if (userPerfils.length > 0) {
+        console.log('[DELETE-ACCOUNT] Paso 3: Eliminando PUNTO_ENCUENTRO...');
+        await connection.execute(
+          `DELETE FROM PUNTO_ENCUENTRO 
+           WHERE ID_RUT_PEN IN (
+             SELECT ID_RUT FROM RUTA 
+             WHERE ID_UPE_RUT IN (${userPerfils.map((_, i) => `:upid${i}`).join(',')})
+           )`,
+          userPerfils.reduce((obj, val, i) => ({ ...obj, [`upid${i}`]: val }), {})
+        );
+        console.log('[DELETE-ACCOUNT] PUNTO_ENCUENTRO eliminados');
+      }
 
-      // 8. Eliminar USUARIO_PERFIL (que referencia USUARIO)
-      console.log('[INFO] Eliminando USUARIO_PERFIL...');
-      await connection.execute(
-        `DELETE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento`,
-        { documento }
-      );
+      // ========== PASO 4: Eliminar CALIFICACION (solo si usuario completo) ==========
+      if (deleteEntireUser) {
+        console.log('[DELETE-ACCOUNT] Paso 4: Eliminando CALIFICACION...');
+        await connection.execute(
+          `DELETE FROM CALIFICACION 
+           WHERE DOCUMENTO_CALIFICADOR_CAL = :documento 
+           OR DOCUMENTO_CALIFICADO_CAL = :documento`,
+          { documento }
+        );
+        console.log('[DELETE-ACCOUNT] CALIFICACION eliminadas');
+      }
 
-      // 9. Eliminar TRANSACCIONES_CARTERA (que referencia USUARIO)
-      console.log('[INFO] Eliminando TRANSACCIONES_CARTERA...');
-      await connection.execute(
-        `DELETE FROM TRANSACCIONES_CARTERA WHERE DOCUMENTO_USU_TRA = :documento`,
-        { documento }
-      );
+      // ========== PASO 5: Eliminar HISTORIAL_VIAJE (solo si usuario completo) ==========
+      if (deleteEntireUser) {
+        console.log('[DELETE-ACCOUNT] Paso 5: Eliminando HISTORIAL_VIAJE...');
+        await connection.execute(
+          `DELETE FROM HISTORIAL_VIAJE 
+           WHERE DOCUMENTO_USU_HIS = :documento`,
+          { documento }
+        );
+        console.log('[DELETE-ACCOUNT] HISTORIAL_VIAJE eliminados');
+      }
 
-      // 10. Eliminar VERIFICACION_CORREO (que referencia USUARIO)
-      console.log('[INFO] Eliminando VERIFICACION_CORREO...');
-      await connection.execute(
-        `DELETE FROM VERIFICACION_CORREO WHERE DOCUMENTO_USU_VER = :documento`,
-        { documento }
-      );
+      // ========== PASO 6: Eliminar SOLICITUD_CUPO (del perfil eliminado) ==========
+      if (userPerfils.length > 0) {
+        console.log('[DELETE-ACCOUNT] Paso 6: Eliminando SOLICITUD_CUPO...');
+        await connection.execute(
+          `DELETE FROM SOLICITUD_CUPO 
+           WHERE ID_UPE_SOL IN (${userPerfils.map((_, i) => `:upid${i}`).join(',')})`,
+          userPerfils.reduce((obj, val, i) => ({ ...obj, [`upid${i}`]: val }), {})
+        );
+        console.log('[DELETE-ACCOUNT] SOLICITUD_CUPO eliminadas');
+      }
 
-      // 11. Eliminar USUARIO (tabla principal)
-      console.log('[INFO] Eliminando USUARIO...');
-      const deleteResult = await connection.execute(
-        `DELETE FROM USUARIO WHERE DOCUMENTO_USU = :documento`,
-        { documento }
-      );
+      // ========== PASO 7: Eliminar RUTA (del perfil eliminado) ==========
+      if (userPerfils.length > 0) {
+        console.log('[DELETE-ACCOUNT] Paso 7: Eliminando RUTA...');
+        await connection.execute(
+          `DELETE FROM RUTA 
+           WHERE ID_UPE_RUT IN (${userPerfils.map((_, i) => `:upid${i}`).join(',')})`,
+          userPerfils.reduce((obj, val, i) => ({ ...obj, [`upid${i}`]: val }), {})
+        );
+        console.log('[DELETE-ACCOUNT] RUTA eliminadas');
+      }
 
+      // ========== PASO 8: Eliminar VEHICULO (solo si usuario completo) ==========
+      if (deleteEntireUser) {
+        console.log('[DELETE-ACCOUNT] Paso 8: Eliminando VEHICULO...');
+        await connection.execute(
+          `DELETE FROM VEHICULO WHERE DOCUMENTO_USU_VEH = :documento`,
+          { documento }
+        );
+        console.log('[DELETE-ACCOUNT] VEHICULO eliminados');
+      }
+
+      // ========== PASO 9: Eliminar USUARIO_PERFIL ==========
+      if (userPerfils.length > 0) {
+        console.log('[DELETE-ACCOUNT] Paso 9: Eliminando USUARIO_PERFIL...');
+        await connection.execute(
+          `DELETE FROM USUARIO_PERFIL 
+           WHERE ID_UPE IN (${userPerfils.map((_, i) => `:upid${i}`).join(',')})`,
+          userPerfils.reduce((obj, val, i) => ({ ...obj, [`upid${i}`]: val }), {})
+        );
+        console.log('[DELETE-ACCOUNT] USUARIO_PERFIL eliminados');
+      }
+
+      // ========== PASO 10: Eliminar TRANSACCIONES_CARTERA (solo si usuario completo) ==========
+      if (deleteEntireUser) {
+        console.log('[DELETE-ACCOUNT] Paso 10: Eliminando TRANSACCIONES_CARTERA...');
+        await connection.execute(
+          `DELETE FROM TRANSACCIONES_CARTERA WHERE DOCUMENTO_USU_TRA = :documento`,
+          { documento }
+        );
+        console.log('[DELETE-ACCOUNT] TRANSACCIONES_CARTERA eliminadas');
+      }
+
+      // ========== PASO 11: Eliminar VERIFICACION_CORREO (solo si usuario completo) ==========
+      if (deleteEntireUser) {
+        console.log('[DELETE-ACCOUNT] Paso 11: Eliminando VERIFICACION_CORREO...');
+        await connection.execute(
+          `DELETE FROM VERIFICACION_CORREO WHERE DOCUMENTO_USU_VER = :documento`,
+          { documento }
+        );
+        console.log('[DELETE-ACCOUNT] VERIFICACION_CORREO eliminadas');
+      }
+
+      // ========== PASO 12: Eliminar RECUPERACION_CONTRASENA (solo si usuario completo) ==========
+      if (deleteEntireUser) {
+        console.log('[DELETE-ACCOUNT] Paso 12: Eliminando RECUPERACION_CONTRASENA...');
+        await connection.execute(
+          `DELETE FROM RECUPERACION_CONTRASENA WHERE DOCUMENTO_USU_REC = :documento`,
+          { documento }
+        );
+        console.log('[DELETE-ACCOUNT] RECUPERACION_CONTRASENA eliminadas');
+      }
+
+      // ========== PASO 13: Finalmente, eliminar el USUARIO (solo si es única) ==========
+      if (deleteEntireUser) {
+        console.log('[DELETE-ACCOUNT] Paso 13: Eliminando USUARIO...');
+        const deleteResult = await connection.execute(
+          `DELETE FROM USUARIO WHERE DOCUMENTO_USU = :documento`,
+          { documento }
+        );
+        console.log('[DELETE-ACCOUNT] USUARIO eliminado');
+      } else {
+        console.log('[DELETE-ACCOUNT] Perfil eliminado (usuario mantenido con otros perfiles)');
+      }
+
+      // Confirmar la transacción
+      await connection.commit();
       await connection.close();
 
-      console.log('[INFO] Cuenta eliminada exitosamente:', documento);
+      const message = deleteEntireUser 
+        ? 'Cuenta y todos sus datos han sido eliminados permanentemente'
+        : 'Perfil y sus datos asociados han sido eliminados (otros perfiles mantenidos)';
+      
+      console.log('[DELETE-ACCOUNT] ✅ Eliminación exitosa:', documento);
 
       return res.status(200).json({
-        message: 'Cuenta eliminada exitosamente',
-        documento
+        success: true,
+        message,
+        profileDeleted: !deleteEntireUser,
+        timestamp: new Date().toISOString()
       });
 
     } catch (err) {
+      // Revertir transacción en caso de error
+      await connection.rollback();
       await connection.close();
       throw err;
     }
 
   } catch (err) {
-    console.error('[ERROR] Error en deleteAccount:', err.message, err.stack);
-    return res.status(500).json({ 
+    console.error('[DELETE-ACCOUNT] ❌ Error:', err.message);
+    console.error('[DELETE-ACCOUNT] Stack:', err.stack);
+    return res.status(500).json({
+      success: false,
       error: 'Error al eliminar la cuenta',
-      message: err.message 
+      message: err.message,
+      timestamp: new Date().toISOString()
     });
   }
 }

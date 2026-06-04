@@ -43,10 +43,20 @@ export const API_ENDPOINTS = {
 
   // Usuario
   DELETE_ACCOUNT: `${API_BASE_URL}/users/delete-account`,
-  GET_USER_VEHICLES: `${API_BASE_URL}/api/usuario/vehiculos`,
-  CREATE_USER_VEHICLE: `${API_BASE_URL}/api/usuario/vehiculos`,
-  DELETE_USER_VEHICLE: (vehicleId: number) => `${API_BASE_URL}/api/usuario/vehiculos/${vehicleId}`,
+  GET_USER_VEHICLES: `${API_BASE_URL}/vehicles`,
+  CREATE_USER_VEHICLE: `${API_BASE_URL}/vehicles`,
+  DELETE_USER_VEHICLE: (vehicleId: number) => `${API_BASE_URL}/vehicles/${vehicleId}`,
   GET_TRAVEL_HISTORY: `${API_BASE_URL}/api/usuario/historial-viajes`,
+
+  // Perfil
+  GET_PROFILE: `${API_BASE_URL}/api/perfil`,
+  UPDATE_PROFILE: `${API_BASE_URL}/api/perfil`,
+  CHANGE_PASSWORD: `${API_BASE_URL}/api/perfil/cambiar-contrasena`,
+
+  // Catálogos de vehículos
+  GET_VEHICLE_BRANDS: `${API_BASE_URL}/vehicles/brands`,
+  GET_VEHICLE_COLORS: `${API_BASE_URL}/vehicles/colors`,
+  GET_VEHICLE_MODELS: `${API_BASE_URL}/vehicles/models`,
 };
 
 export const ESTADO_TIPOS = {
