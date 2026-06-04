@@ -177,12 +177,22 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
       // Vehículos asociados al conductor
       if (normalized.includes('/vehicles') || normalized.includes('vehiculos') || normalized.includes('/vehicle')) return 'driver-my-vehicles'
     }
+    if (isAdmin) {
+      if (normalized.includes('/catalogs') || normalized.includes('catalogo')) return 'catalogs'
+      if (normalized.includes('/users') || normalized.includes('usuario')) return 'usuarios'
+      if (normalized.includes('/vehicles') || normalized.includes('vehiculo')) return 'vehiculos'
+      if (normalized.includes('/routes') || normalized.includes('ruta')) return 'rutas'
+      if (normalized.includes('/reports') || normalized.includes('reporte')) return 'reportes'
+      if (normalized.includes('/requests') || normalized.includes('solicitud')) return 'solicitudes'
+      if (normalized.includes('/settings') || normalized.includes('configuracion')) return 'configuracion'
+    }
     return null
   }
 
   const getDashboardBasePath = () => {
     if (isDriver) return '/dashboard/driver'
     if (isPassenger) return '/dashboard/passenger'
+    if (isAdmin) return '/dashboard/admin'
     return '/dashboard'
   }
 

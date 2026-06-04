@@ -145,8 +145,18 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
   const validPassengerSections = ['buscar', 'viajes', 'cartera', 'carrera', 'perfil', 'configuracion']
   const passengerTabValue = validPassengerSections.includes(passengerSection) ? passengerSection : 'buscar'
   const driverSection = searchParams.get('section') ?? 'driver-my-routes'
+  
+  const adminSection = searchParams.get('section') ?? 'usuarios'
+  const validAdminSections = ['usuarios', 'vehiculos', 'rutas', 'solicitudes', 'catalogs', 'reportes', 'configuracion']
+  const adminTabValue = validAdminSections.includes(adminSection) ? adminSection : 'usuarios'
 
   const handlePassengerTabChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('section', value)
+    router.replace(`${pathname}?${params.toString()}`)
+  }
+
+  const handleAdminTabChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('section', value)
     router.replace(`${pathname}?${params.toString()}`)
@@ -915,12 +925,13 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
         </div>
 
         {/* Admin Tabs */}
-        <Tabs defaultValue="usuarios" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 mb-6">
+        <Tabs value={adminTabValue} onValueChange={handleAdminTabChange} className="w-full">
+          <TabsList className="grid w-full grid-cols-7 mb-6">
             <TabsTrigger value="usuarios">Usuarios</TabsTrigger>
             <TabsTrigger value="vehiculos">Vehículos</TabsTrigger>
             <TabsTrigger value="rutas">Rutas</TabsTrigger>
             <TabsTrigger value="solicitudes">Solicitudes</TabsTrigger>
+            <TabsTrigger value="catalogs">Catálogos</TabsTrigger>
             <TabsTrigger value="reportes">Reportes</TabsTrigger>
             <TabsTrigger value="configuracion">Configuración</TabsTrigger>
           </TabsList>
@@ -1029,6 +1040,58 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">Funcionalidad de solicitudes en construcción</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Catálogos Tab */}
+          <TabsContent value="catalogs" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Catálogos del Sistema</CardTitle>
+                <CardDescription>Gestión de marcas, modelos, colores y otras categorías</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="marcas" className="w-full">
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="marcas">Marcas</TabsTrigger>
+                    <TabsTrigger value="modelos">Modelos</TabsTrigger>
+                    <TabsTrigger value="colores">Colores</TabsTrigger>
+                    <TabsTrigger value="estados">Estados</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="marcas" className="space-y-4 mt-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-semibold">Marcas de Vehículos</h3>
+                      <Button className="bg-black text-white hover:bg-black/90"><Plus className="w-4 h-4 mr-2" /> Agregar</Button>
+                    </div>
+                    <p className="text-muted-foreground">Gestión de marcas en construcción</p>
+                  </TabsContent>
+                  
+                  <TabsContent value="modelos" className="space-y-4 mt-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-semibold">Modelos de Vehículos</h3>
+                      <Button className="bg-black text-white hover:bg-black/90"><Plus className="w-4 h-4 mr-2" /> Agregar</Button>
+                    </div>
+                    <p className="text-muted-foreground">Gestión de modelos en construcción</p>
+                  </TabsContent>
+                  
+                  <TabsContent value="colores" className="space-y-4 mt-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-semibold">Colores</h3>
+                      <Button className="bg-black text-white hover:bg-black/90"><Plus className="w-4 h-4 mr-2" /> Agregar</Button>
+                    </div>
+                    <p className="text-muted-foreground">Gestión de colores en construcción</p>
+                  </TabsContent>
+                  
+                  <TabsContent value="estados" className="space-y-4 mt-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-semibold">Estados del Sistema</h3>
+                      <Button className="bg-black text-white hover:bg-black/90"><Plus className="w-4 h-4 mr-2" /> Agregar</Button>
+                    </div>
+                    <p className="text-muted-foreground">Gestión de estados en construcción</p>
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           </TabsContent>
