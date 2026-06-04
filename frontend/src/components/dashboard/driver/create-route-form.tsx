@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { apiClient } from '@/lib/api-client'
+import { API_BASE_URL } from '@/lib/api-constants'
 import { AlertCircle, CheckCircle2, X, MapPin, Plus, Trash2 } from 'lucide-react'
 import { GoogleMap, Marker, DirectionsRenderer, useJsApiLoader } from '@react-google-maps/api'
 
@@ -205,7 +206,7 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
     }))
   }
 
-  // Calcular la ruta real usando Google Maps Directions API
+  // Calcular la ruta real usando Google Maps Directions API (OPCIONAL - no bloquea si falla)
   const calculateRoute = async () => {
     // No ejecutar si Google Maps no está cargado o servicio no disponible
     if (!isLoaded || !window.google || !directionsServiceRef.current) {
@@ -227,7 +228,14 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
         travelMode: window.google.maps.TravelMode.DRIVING,
       }
 
-      const result = await directionsServiceRef.current.route(request)
+      // Timeout para Google Maps API (5 segundos)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Google Maps timeout')), 5000)
+      )
+      const result = await Promise.race([
+        directionsServiceRef.current.route(request),
+        timeoutPromise
+      ])
       
       if (result && result.status === window.google.maps.DirectionsStatus.OK) {
         setDirectionsResult(result)
@@ -254,8 +262,10 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
         console.warn('Directions request failed:', result?.status)
         setDirectionsResult(null)
       }
-    } catch (error) {
-      console.error('Error calculating route:', error)
+    } catch (error: any) {
+      // Google Maps errors no bloquean la creación de rutas
+      // Solo se usa para mostrar la línea en el mapa
+      console.warn('Google Maps visualization unavailable:', error?.message || error)
       setDirectionsResult(null)
     }
   }
@@ -275,8 +285,8 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
       if (!formData.departure || formData.availableSeats < 1 || formData.availableSeats > 6) {
         throw new Error('Cupos deben ser entre 1 y 6')
       }
-      if (formData.price <= 0) {
-        throw new Error('Precio debe ser mayor a 0')
+      if (formData.price < 1000) {
+        throw new Error('Precio debe ser mínimo 1000 COP')
       }
 
       const departureDate = new Date(formData.departure)
@@ -301,7 +311,7 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
         }))
       }
 
-      const response = await apiClient.post('/routes', payload)
+      const response = await apiClient.post(`${API_BASE_URL}/api/routes`, payload)
 
       if (response.data?.data?.routeId || response.status === 201) {
         const routeId = response.data?.data?.routeId
@@ -613,12 +623,12 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
                 name="price"
                 value={formData.price}
                 onChange={handleChange}
-                min="1"
-                step="100"
+                min="1000"
+                step="1"
                 required
                 className="w-full"
               />
-              <div className="text-xs text-gray-500 mt-1">COP</div>
+              <div className="text-xs text-gray-500 mt-1">Mínimo 1000 COP</div>
             </div>
           </div>
 
