@@ -55,11 +55,30 @@ export function CRUDModal({
   onSubmit,
   onClose,
 }: CRUDModalProps) {
-  const [initialValues] = React.useState(() =>
-    initialData || fields.reduce((acc, f) => ({ ...acc, [f.name]: '' }), {})
-  );
   const [brandOptions, setBrandOptions] = useState<SelectOption[]>([]);
   const [loadingBrands, setLoadingBrands] = useState(false);
+
+  // Crear valores iniciales basados en fields
+  const createEmptyValues = () => {
+    return fields.reduce((acc, f) => ({ ...acc, [f.name]: '' }), {});
+  };
+
+  // Usar initialData si está disponible, sino usar valores vacíos
+  const getInitialValues = () => {
+    return initialData || createEmptyValues();
+  };
+
+  const form = useForm({
+    initialValues: getInitialValues(),
+    validate: (values) => {
+      return validateFormData(tabla, values);
+    },
+    onSubmit: async (values) => {
+      await onSubmit(values);
+      form.reset();
+      onClose();
+    },
+  });
 
   // Cargar marcas si hay un campo select de marca
   useEffect(() => {
@@ -67,6 +86,14 @@ export function CRUDModal({
       loadBrands();
     }
   }, [open, tabla, fields]);
+
+  // Actualizar los valores del formulario cuando cambia initialData o se abre el modal
+  useEffect(() => {
+    if (open) {
+      const newInitialValues = getInitialValues();
+      form.setValues(newInitialValues);
+    }
+  }, [initialData, open]);
 
   const loadBrands = async () => {
     setLoadingBrands(true);
@@ -79,26 +106,6 @@ export function CRUDModal({
       setLoadingBrands(false);
     }
   };
-
-  const form = useForm({
-    initialValues: initialData || initialValues,
-    validate: (values) => {
-      return validateFormData(tabla, values);
-    },
-    onSubmit: async (values) => {
-      await onSubmit(values);
-      form.reset();
-      onClose();
-    },
-  });
-
-  useEffect(() => {
-    if (initialData) {
-      Object.entries(initialData).forEach(([key, value]) => {
-        form.setFieldValue(key as keyof typeof form.values, value);
-      });
-    }
-  }, [initialData, open]);
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {

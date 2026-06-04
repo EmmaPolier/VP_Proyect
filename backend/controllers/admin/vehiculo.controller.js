@@ -259,13 +259,41 @@ export async function updateVehiculo(req, res) {
   try {
     connection = await getConnection();
 
-    const existing = await connection.execute(
-      'SELECT COUNT(*) as count FROM VEHICULO WHERE ID_VEH = :id',
+    // Obtener datos actuales del vehículo
+    const currentVehiculoResult = await connection.execute(
+      'SELECT PLACA_VEH, DOCUMENTO_USU_VEH FROM VEHICULO WHERE ID_VEH = :id',
       { id }
     );
 
-    if (existing.rows[0][0] === 0) {
+    if (currentVehiculoResult.rows.length === 0) {
       return errorResponse(res, null, 'Vehículo no encontrado', 404);
+    }
+
+    const currentPlaca = currentVehiculoResult.rows[0][0];
+    const currentDocumentoUsuario = currentVehiculoResult.rows[0][1];
+
+    // Validar que no haya duplicado de placa SOLO si cambió
+    if (placa && placa !== currentPlaca) {
+      const duplicateCheck = await connection.execute(
+        'SELECT COUNT(*) as count FROM VEHICULO WHERE PLACA_VEH = :placa AND ID_VEH != :id',
+        { placa, id }
+      );
+
+      if (duplicateCheck.rows[0][0] > 0) {
+        return errorResponse(res, null, 'Ya existe un vehículo con la misma placa', 409);
+      }
+    }
+
+    // Validar que el usuario exista si se intenta cambiar el propietario
+    if (documentoUsuario && documentoUsuario !== currentDocumentoUsuario) {
+      const usuarioCheck = await connection.execute(
+        'SELECT COUNT(*) as count FROM USUARIO WHERE DOCUMENTO_USU = :documento',
+        { documento: documentoUsuario }
+      );
+
+      if (usuarioCheck.rows[0][0] === 0) {
+        return errorResponse(res, null, 'Usuario no encontrado', 404);
+      }
     }
 
     const updateFields = [];
@@ -347,6 +375,61 @@ export async function deleteVehiculo(req, res) {
       return errorResponse(res, null, 'Vehículo no encontrado', 404);
     }
 
+    // 1. Obtener todas las rutas asociadas a este vehículo
+    const rutasResult = await connection.execute(
+      'SELECT ID_RUT FROM RUTA WHERE ID_VEH_RUT = :id',
+      { id }
+    );
+
+    const rutaIds = rutasResult.rows.map((row) => row[0]);
+
+    if (rutaIds.length > 0) {
+      const rutaIdList = rutaIds.join(',');
+
+      // 2. Eliminar CALIFICACION que dependen de CUPO_RUTA de estas rutas
+      await connection.execute(
+        `DELETE FROM CALIFICACION 
+         WHERE (SOL_ID_CAL, RUT_ID_CAL) IN (
+           SELECT ID_SOL_CRU, ID_RUT_CRU FROM CUPO_RUTA WHERE ID_RUT_CRU IN (${rutaIdList})
+         )`,
+        {}
+      );
+
+      // 3. Eliminar HISTORIAL_VIAJE que dependen de CUPO_RUTA de estas rutas
+      await connection.execute(
+        `DELETE FROM HISTORIAL_VIAJE 
+         WHERE (SOL_ID_HIS, RUT_ID_HIS) IN (
+           SELECT ID_SOL_CRU, ID_RUT_CRU FROM CUPO_RUTA WHERE ID_RUT_CRU IN (${rutaIdList})
+         )`,
+        {}
+      );
+
+      // 4. Eliminar CUPO_RUTA de estas rutas
+      await connection.execute(
+        `DELETE FROM CUPO_RUTA WHERE ID_RUT_CRU IN (${rutaIdList})`,
+        {}
+      );
+
+      // 5. Eliminar SOLICITUD_CUPO que dependen de estas rutas
+      await connection.execute(
+        `DELETE FROM SOLICITUD_CUPO WHERE ID_RUT_SOL IN (${rutaIdList})`,
+        {}
+      );
+
+      // 6. Eliminar PUNTO_ENCUENTRO de estas rutas
+      await connection.execute(
+        `DELETE FROM PUNTO_ENCUENTRO WHERE ID_RUT_PEN IN (${rutaIdList})`,
+        {}
+      );
+
+      // 7. Eliminar las RUTA
+      await connection.execute(
+        `DELETE FROM RUTA WHERE ID_VEH_RUT = :id`,
+        { id }
+      );
+    }
+
+    // 8. Finalmente eliminar el VEHICULO
     await connection.execute('DELETE FROM VEHICULO WHERE ID_VEH = :id', { id });
 
     successResponse(res, { id }, 'Vehículo eliminado exitosamente');

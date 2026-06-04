@@ -23,6 +23,7 @@ interface UseFormReturn<T> {
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => Promise<void>;
   setFieldValue: (field: keyof T, value: any) => void;
   setFieldError: (field: keyof T, error: string) => void;
+  setValues: (values: T) => void;
   reset: () => void;
   validateField: (field: keyof T) => string;
 }
@@ -139,6 +140,12 @@ export function useForm<T extends Record<string, any>>(
     }));
   }, []);
 
+  const setValuesMethod = useCallback((newValues: T) => {
+    setValues(newValues);
+    setErrors({} as Record<keyof T, string>);
+    setTouched({} as Record<keyof T, boolean>);
+  }, []);
+
   const reset = useCallback(() => {
     setValues(options.initialValues);
     setErrors({} as Record<keyof T, string>);
@@ -156,6 +163,7 @@ export function useForm<T extends Record<string, any>>(
     handleSubmit,
     setFieldValue,
     setFieldError,
+    setValues: setValuesMethod,
     reset,
     validateField,
   };

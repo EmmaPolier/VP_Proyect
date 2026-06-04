@@ -276,13 +276,43 @@ export async function updateUsuario(req, res) {
   try {
     connection = await getConnection();
 
-    const existingUser = await connection.execute(
-      'SELECT COUNT(*) as count FROM USUARIO WHERE DOCUMENTO_USU = :documento',
+    // Obtener datos actuales del usuario
+    const currentUserResult = await connection.execute(
+      'SELECT CORREO_USU, NUMERO_TELEFONO_USU FROM USUARIO WHERE DOCUMENTO_USU = :documento',
       { documento }
     );
 
-    if (existingUser.rows[0][0] === 0) {
+    if (currentUserResult.rows.length === 0) {
       return errorResponse(res, null, 'Usuario no encontrado', 404);
+    }
+
+    const currentEmail = currentUserResult.rows[0][0];
+    const currentTelefono = currentUserResult.rows[0][1];
+
+    // Validar duplicados SOLO si el email o teléfono cambiaron
+    if ((email && email !== currentEmail) || (telefono && telefono !== currentTelefono)) {
+      const conditions = [];
+      const params = { documento };
+
+      if (email && email !== currentEmail) {
+        conditions.push('CORREO_USU = :email');
+        params.email = email;
+      }
+      if (telefono && telefono !== currentTelefono) {
+        conditions.push('NUMERO_TELEFONO_USU = :telefono');
+        params.telefono = telefono;
+      }
+
+      if (conditions.length > 0) {
+        const duplicateCheck = await connection.execute(
+          `SELECT COUNT(*) as count FROM USUARIO WHERE (${conditions.join(' OR ')}) AND DOCUMENTO_USU != :documento`,
+          params
+        );
+
+        if (duplicateCheck.rows[0][0] > 0) {
+          return errorResponse(res, null, 'Ya existe un usuario con el mismo email o teléfono', 409);
+        }
+      }
     }
 
     const updateFields = [];
@@ -379,10 +409,86 @@ export async function deleteUsuario(req, res) {
       return errorResponse(res, null, 'Usuario no encontrado', 404);
     }
 
+    // Obtener IDs de USUARIO_PERFIL para este usuario
+    const usuarioPerfil = await connection.execute(
+      'SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento',
+      { documento }
+    );
+
+    const uperIds = usuarioPerfil.rows.map((row) => row[0]);
+
+    if (uperIds.length > 0) {
+      // 1. Eliminar CALIFICACION que dependen de CUPO_RUTA
+      await connection.execute(
+        `DELETE FROM CALIFICACION 
+         WHERE (SOL_ID_CAL, RUT_ID_CAL) IN (
+           SELECT ID_SOL_CRU, ID_RUT_CRU FROM CUPO_RUTA 
+           WHERE ID_SOL_CRU IN (
+             SELECT ID_SOL FROM SOLICITUD_CUPO WHERE ID_UPE_SOL IN (${uperIds.join(',')})
+           )
+         )`,
+        {}
+      );
+
+      // 2. Eliminar HISTORIAL_VIAJE que dependen de CUPO_RUTA
+      await connection.execute(
+        `DELETE FROM HISTORIAL_VIAJE 
+         WHERE (SOL_ID_HIS, RUT_ID_HIS) IN (
+           SELECT ID_SOL_CRU, ID_RUT_CRU FROM CUPO_RUTA 
+           WHERE ID_SOL_CRU IN (
+             SELECT ID_SOL FROM SOLICITUD_CUPO WHERE ID_UPE_SOL IN (${uperIds.join(',')})
+           )
+         )`,
+        {}
+      );
+
+      // 3. Eliminar CUPO_RUTA que dependen de SOLICITUD_CUPO
+      await connection.execute(
+        `DELETE FROM CUPO_RUTA 
+         WHERE ID_SOL_CRU IN (
+           SELECT ID_SOL FROM SOLICITUD_CUPO WHERE ID_UPE_SOL IN (${uperIds.join(',')})
+         )`,
+        {}
+      );
+
+      // 4. Eliminar SOLICITUD_CUPO que dependen de USUARIO_PERFIL
+      await connection.execute(
+        `DELETE FROM SOLICITUD_CUPO WHERE ID_UPE_SOL IN (${uperIds.join(',')})`,
+        {}
+      );
+
+      // 5. Eliminar RUTA que dependen de USUARIO_PERFIL (como conductor)
+      await connection.execute(
+        `DELETE FROM RUTA WHERE ID_UPE_RUT IN (${uperIds.join(',')})`,
+        {}
+      );
+    }
+
+    // 6. Eliminar VEHICULO que dependen de USUARIO (como propietario)
+    await connection.execute(
+      'DELETE FROM VEHICULO WHERE DOCUMENTO_USU_VEH = :documento',
+      { documento }
+    );
+
+    // 7. Eliminar TRANSACCIONES_CARTERA
+    await connection.execute(
+      'DELETE FROM TRANSACCIONES_CARTERA WHERE DOCUMENTO_USU_TRA = :documento',
+      { documento }
+    );
+
+    // 8. Eliminar VERIFICACION_CORREO
+    await connection.execute(
+      'DELETE FROM VERIFICACION_CORREO WHERE DOCUMENTO_USU_VER = :documento',
+      { documento }
+    );
+
+    // 9. Eliminar USUARIO_PERFIL
     await connection.execute(
       'DELETE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento',
       { documento }
     );
+
+    // 10. Finalmente eliminar USUARIO
     await connection.execute(
       'DELETE FROM USUARIO WHERE DOCUMENTO_USU = :documento',
       { documento }

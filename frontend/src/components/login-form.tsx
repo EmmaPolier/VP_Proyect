@@ -106,11 +106,33 @@ export function LoginForm({
       router.push(isAdmin ? "/admin/catalogs" : "/dashboard")
     } catch (err: any) {
       console.error("Error:", err)
-      if (err.response?.data?.message) {
-        setError(err.response.data.message)
-      } else {
-        setError("Error al conectar con el servidor")
+      let errorMessage = "Error al conectar con el servidor"
+      let errorDetails = ""
+
+      if (err.response?.data) {
+        const data = err.response.data
+        
+        if (data.error) {
+          errorMessage = data.error
+          if (data.details) {
+            errorDetails = data.details
+          }
+
+          // Mensajes personalizados según el estado
+          if (data.estado === 'INACTIVO') {
+            errorMessage = "🔴 Cuenta Inactiva"
+          } else if (data.estado === 'SUSPENDIDO') {
+            errorMessage = "⛔ Cuenta Suspendida"
+          } else if (data.estado === 'PENDIENTE') {
+            errorMessage = "⏳ Verificación Pendiente"
+          }
+        } else if (data.message) {
+          errorMessage = data.message
+        }
       }
+
+      const fullError = errorDetails ? `${errorMessage}: ${errorDetails}` : errorMessage
+      setError(fullError)
       setLoading(false)
     }
   }
@@ -156,7 +178,21 @@ export function LoginForm({
       router.push(isAdmin ? "/admin/catalogs" : "/dashboard")
     } catch (err: any) {
       console.error("Error:", err)
-      setError("Error al cambiar perfil")
+      let errorMessage = "Error al cambiar perfil"
+
+      if (err.response?.data) {
+        const data = err.response.data
+        if (data.error) {
+          errorMessage = data.error
+          if (data.details) {
+            errorMessage = `${errorMessage}: ${data.details}`
+          }
+        } else if (data.message) {
+          errorMessage = data.message
+        }
+      }
+
+      setError(errorMessage)
       setLoading(false)
     }
   }
@@ -212,7 +248,25 @@ export function LoginForm({
             Introduce tu email y contraseña para iniciar sesión
           </CardDescription>
           {error && (
-            <p className="text-sm text-red-600 mt-2">{error}</p>
+            <div className={cn(
+              "mt-3 p-3 rounded-lg text-sm border-l-4",
+              error.includes('Inactiva') || error.includes('Suspendida') || error.includes('Pendiente')
+                ? "bg-orange-50 border-orange-400 text-orange-800"
+                : "bg-red-50 border-red-400 text-red-800"
+            )}>
+              {error.includes('Inactiva') && <p className="font-semibold">⚠️ Tu cuenta está inactiva</p>}
+              {error.includes('Suspendida') && <p className="font-semibold">⛔ Tu cuenta ha sido suspendida</p>}
+              {error.includes('Pendiente') && <p className="font-semibold">⏳ Verificación pendiente</p>}
+              {!error.includes('Inactiva') && !error.includes('Suspendida') && !error.includes('Pendiente') && 
+                <p className="font-semibold">❌ Error de acceso</p>
+              }
+              <p className="mt-1 text-xs leading-relaxed">{error}</p>
+              {(error.includes('Inactiva') || error.includes('Suspendida') || error.includes('contacta al administrador')) && (
+                <p className="mt-2 text-xs font-semibold">
+                  📧 Contacta a: <span className="font-mono">admin@vp.local</span>
+                </p>
+              )}
+            </div>
           )}
           {success && (
             <p className="text-sm text-green-600 mt-2">{success}</p>

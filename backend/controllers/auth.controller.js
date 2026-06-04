@@ -381,33 +381,94 @@ export async function login(req, res) {
       return res.status(400).json({ error: 'Email y contraseña son requeridos' });
     }
 
+    // Validar dominio de email
+    const dominioValido = email.toLowerCase().endsWith('@elpoli.edu.co');
+    
     connection = await getConnection();
 
-    // Buscar usuario
+    // Buscar usuario por email
     const userResult = await connection.execute(
-      `SELECT DOCUMENTO_USU, CONTRASENA_USU, ID_EST_USU, NOMBRES_USU FROM USUARIO 
-       WHERE CORREO_USU = :email`,
+      `SELECT DOCUMENTO_USU, CORREO_USU, CONTRASENA_USU, ID_EST_USU, NOMBRES_USU FROM USUARIO 
+       WHERE LOWER(CORREO_USU) = LOWER(:email)`,
       { email }
     );
 
+    // Si usuario no existe
     if (!userResult.rows || userResult.rows.length === 0) {
       await connection.close();
-      return res.status(404).json({ error: 'Usuario no encontrado' });
+      
+      // Si el dominio es inválido, dar información diferente
+      if (!dominioValido) {
+        return res.status(400).json({ 
+          error: `Acceso restringido: solo se permiten correos @elpoli.edu.co. Si eres usuario pero usaste otro email, contacta al administrador.` 
+        });
+      }
+      
+      return res.status(401).json({ 
+        error: 'Correo o contraseña incorrectos',
+        details: 'El correo no está registrado en el sistema' 
+      });
     }
 
-    const [documento, hash, estado, nombres] = userResult.rows[0];
-
-    // Verificar estado (ACTIVO = 1)
-    if (estado !== 1) {
+    const [documento, correoRegistrado, hash, estadoId, nombres] = userResult.rows[0];
+    
+    // Si el email existe pero el dominio en registro no es válido
+    if (!correoRegistrado || !correoRegistrado.toLowerCase().endsWith('@elpoli.edu.co')) {
       await connection.close();
-      return res.status(403).json({ error: 'Cuenta no verificada o suspendida' });
+      return res.status(403).json({ 
+        error: 'Acceso no permitido',
+        details: 'Tu cuenta fue registrada con un dominio no autorizado. Contacta al administrador para actualizar tu email.' 
+      });
+    }
+
+    // Obtener el nombre del estado
+    const estadoResult = await connection.execute(
+      `SELECT NOMBRE_EUS, DESCRIPCION_EUS FROM ESTADO_USUARIO WHERE ID_EUS = :estadoId`,
+      { estadoId }
+    );
+    
+    const nombreEstado = estadoResult.rows ? estadoResult.rows[0][0] : 'DESCONOCIDO';
+    const descEstado = estadoResult.rows ? estadoResult.rows[0][1] : '';
+
+    // Verificar estado del usuario (ACTIVO = 1)
+    if (estadoId !== 1) {
+      await connection.close();
+      
+      if (estadoId === 2) { // INACTIVO
+        return res.status(403).json({ 
+          error: 'Cuenta inactiva',
+          details: 'Tu cuenta ha sido desactivada. Por favor, contacta al administrador para reactivarla.',
+          estado: 'INACTIVO'
+        });
+      } else if (estadoId === 3) { // SUSPENDIDO
+        return res.status(403).json({ 
+          error: 'Cuenta suspendida',
+          details: 'Tu cuenta ha sido suspendida por incumplimiento de las normas de la plataforma. Contacta al administrador para más información.',
+          estado: 'SUSPENDIDO'
+        });
+      } else if (estadoId === 4) { // PENDIENTE
+        return res.status(403).json({ 
+          error: 'Cuenta pendiente de verificación',
+          details: 'Tu cuenta está pendiente de verificación. Revisa tu correo para completar la verificación o contacta al administrador.',
+          estado: 'PENDIENTE'
+        });
+      } else {
+        return res.status(403).json({ 
+          error: 'Acceso denegado',
+          details: `Tu cuenta tiene estado: ${nombreEstado}. ${descEstado}. Contacta al administrador.`,
+          estado: nombreEstado
+        });
+      }
     }
 
     // Verificar contraseña
     const validPassword = await bcryptjs.compare(finalPassword, hash);
     if (!validPassword) {
       await connection.close();
-      return res.status(401).json({ error: 'Contraseña incorrecta' });
+      return res.status(401).json({ 
+        error: 'Correo o contraseña incorrectos',
+        details: 'Verifica que hayas ingresado correctamente tu contraseña' 
+      });
     }
 
     // Obtener TODOS los perfiles del usuario

@@ -232,6 +232,7 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
       <CRUDModal
         open={modalOpen}
         title={selectedItem ? `Editar ${config.label}` : `Nuevo ${config.label}`}
+        initialData={selectedItem}
           fields={formFields.map((field) => {
             const type = config.fieldTypes?.[field] ??
               (field === 'ano' ? 'number' :
