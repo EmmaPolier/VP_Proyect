@@ -134,6 +134,27 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
     }
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem("currentUser")
+    router.push("/login")
+  }
+
+  if (loading) {
+    return (
+      <div className="w-64 bg-card border-r p-6 h-screen sticky top-0 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin" />
+      </div>
+    )
+  }
+
+  if (!currentUser) {
+    return null
+  }
+
+  const isDriver = rolActual === 2
+  const isAdmin = rolActual === 3
+  const isPassenger = rolActual === 1
+
   const normalizeMenuUrl = (url: string) => {
     const normalized = url.toLowerCase()
     if (isPassenger) {
@@ -146,14 +167,15 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
       if (normalized.includes('/requests') || normalized.includes('solicitudes')) return 'viajes'
     }
     if (isDriver) {
-      if (normalized.includes('/routes') || normalized.includes('rutas')) return 'driver-routes'
+      if (normalized.includes('/routes') || normalized.includes('rutas')) return 'driver-my-routes'
       if (normalized.includes('/requests') || normalized.includes('solicitudes')) return 'driver-requests'
       if (normalized.includes('/wallet') || normalized.includes('cartera')) return 'driver-wallet'
-      if (normalized.includes('/profile') || normalized.includes('perfil') || normalized.includes('/settings')) return 'driver-profile'
+      if (normalized.includes('/profile') || normalized.includes('perfil')) return 'driver-profile'
+      if (normalized.includes('/settings') || normalized.includes('configuracion')) return 'driver-configuration'
       // Historial de viajes / mis rutas
-      if (normalized.includes('/history') || normalized.includes('historial') || normalized.includes('/my-routes')) return 'driver-my-routes'
+      if (normalized.includes('/history') || normalized.includes('historial')) return 'driver-travel-history'
       // Vehículos asociados al conductor
-      if (normalized.includes('/vehicles') || normalized.includes('vehiculos') || normalized.includes('/vehicle')) return 'driver-profile'
+      if (normalized.includes('/vehicles') || normalized.includes('vehiculos') || normalized.includes('/vehicle')) return 'driver-my-vehicles'
     }
     return null
   }
@@ -179,27 +201,6 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
 
     console.warn('Menú no mapeado:', item.url)
   }
-
-  const handleLogout = () => {
-    localStorage.removeItem("currentUser")
-    router.push("/login")
-  }
-
-  if (loading) {
-    return (
-      <div className="w-64 bg-card border-r p-6 h-screen sticky top-0 flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin" />
-      </div>
-    )
-  }
-
-  if (!currentUser) {
-    return null
-  }
-
-  const isDriver = rolActual === 2
-  const isAdmin = rolActual === 3
-  const isPassenger = rolActual === 1
 
   // Obtener nombre corto
   const firstName = currentUser.nombres?.split(' ')[0] || 'Usuario'

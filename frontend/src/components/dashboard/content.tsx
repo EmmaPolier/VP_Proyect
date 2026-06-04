@@ -22,6 +22,8 @@ import { API_ENDPOINTS } from "@/lib/api-constants"
 import RatingModal from "../rating-modal"
 import CreateRouteForm from "./driver/create-route-form"
 import ViewRoutesMap from "./passenger/view-routes-map"
+import { DriverVehicles } from "./driver/driver-vehicles"
+import { DriverTravelHistory } from "./driver/driver-travel-history"
 
 interface DashboardContentProps {
   userType?: "passenger" | "driver" | "admin"
@@ -33,6 +35,7 @@ interface MeetingPoint {
   lng: number
   order: number
   label?: string
+  name?: string
 }
 
 interface RouteSearchResult {
@@ -138,7 +141,7 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
   const passengerSection = searchParams.get('section') ?? 'buscar'
   const validPassengerSections = ['buscar', 'viajes', 'cartera', 'carrera', 'perfil', 'configuracion']
   const passengerTabValue = validPassengerSections.includes(passengerSection) ? passengerSection : 'buscar'
-  const driverSection = searchParams.get('section') ?? ''
+  const driverSection = searchParams.get('section') ?? 'driver-my-routes'
 
   const handlePassengerTabChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -1059,7 +1062,7 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
   if (isDriver) {
     return (
       <div id="driver-dashboard" className="p-6 space-y-6">
-        {/* Header with profile and button */}
+        {/* Header with profile - ALWAYS VISIBLE */}
         <div id="driver-profile" className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
@@ -1076,173 +1079,299 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
               </p>
             </div>
           </div>
-          <Button className="bg-black text-white hover:bg-black/90" onClick={handleStartCreateRoute}>
-            <Plus className="w-4 h-4 mr-2" />
-            Publicar nueva ruta
-          </Button>
+          {driverSection === 'driver-my-routes' && (
+            <Button className="bg-black text-white hover:bg-black/90" onClick={handleStartCreateRoute}>
+              <Plus className="w-4 h-4 mr-2" />
+              Publicar nueva ruta
+            </Button>
+          )}
         </div>
 
         {isCreatingRoute && (
           <CreateRouteForm onRouteCreated={handleRouteCreated} onCancel={handleCancelCreateRoute} />
         )}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="border-0 shadow-sm">
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground mb-2">Rutas activas</p>
-              <p className="text-3xl font-bold">{driverStats?.activeRoutes ?? driverRoutes.filter((route) => route.status?.toUpperCase() === 'ACTIVA').length}</p>
-              <p className="text-xs text-muted-foreground">Rutas con cupos disponibles</p>
-            </CardContent>
-          </Card>
+        {/* MIS RUTAS SECTION */}
+        {driverSection === 'driver-my-routes' && (
+          <>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card className="border-0 shadow-sm">
+                <CardContent className="pt-6">
+                  <p className="text-sm text-muted-foreground mb-2">Rutas activas</p>
+                  <p className="text-3xl font-bold">{driverStats?.activeRoutes ?? driverRoutes.filter((route) => route.status?.toUpperCase() === 'ACTIVA').length}</p>
+                  <p className="text-xs text-muted-foreground">Rutas con cupos disponibles</p>
+                </CardContent>
+              </Card>
 
-          <Card className="border-0 shadow-sm">
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground mb-2">Solicitudes pendientes</p>
-              <p className="text-3xl font-bold">{driverStats?.pendingRequests ?? driverRequests.filter((request) => request.status?.toUpperCase() === 'PENDIENTE').length}</p>
-              <p className="text-xs text-muted-foreground">Nuevas solicitudes por revisar</p>
-            </CardContent>
-          </Card>
+              <Card className="border-0 shadow-sm">
+                <CardContent className="pt-6">
+                  <p className="text-sm text-muted-foreground mb-2">Solicitudes pendientes</p>
+                  <p className="text-3xl font-bold">{driverStats?.pendingRequests ?? driverRequests.filter((request) => request.status?.toUpperCase() === 'PENDIENTE').length}</p>
+                  <p className="text-xs text-muted-foreground">Nuevas solicitudes por revisar</p>
+                </CardContent>
+              </Card>
 
-          <Card id="driver-wallet" className="border-0 shadow-sm">
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground mb-2">Saldo cartera</p>
-              <p className="text-3xl font-bold text-green-600">${driverStats?.wallet?.toFixed(0) ?? 0}</p>
-              <p className="text-xs text-muted-foreground">Saldo disponible en tu cuenta</p>
-            </CardContent>
-          </Card>
+              <Card className="border-0 shadow-sm">
+                <CardContent className="pt-6">
+                  <p className="text-sm text-muted-foreground mb-2">Saldo cartera</p>
+                  <p className="text-3xl font-bold text-green-600">${driverStats?.wallet?.toFixed(0) ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Saldo disponible en tu cuenta</p>
+                </CardContent>
+              </Card>
 
-          <Card className="border-0 shadow-sm">
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground mb-2">Ganancia del mes</p>
-              <p className="text-3xl font-bold text-green-600">${driverStats?.totalEarned?.toFixed(0) ?? 0}</p>
-              <p className="text-xs text-muted-foreground">Ingresos por solicitudes aceptadas</p>
-            </CardContent>
-          </Card>
-        </div>
+              <Card className="border-0 shadow-sm">
+                <CardContent className="pt-6">
+                  <p className="text-sm text-muted-foreground mb-2">Ganancia del mes</p>
+                  <p className="text-3xl font-bold text-green-600">${driverStats?.totalEarned?.toFixed(0) ?? 0}</p>
+                  <p className="text-xs text-muted-foreground">Ingresos por solicitudes aceptadas</p>
+                </CardContent>
+              </Card>
+            </div>
 
-        {/* New Request Section */}
-        <Card id="driver-requests" className="border-l-4 border-l-blue-500">
-          <CardContent className="pt-6">
-            <p className="font-medium mb-2">Solicitudes de pasajeros</p>
-            {requestsLoading ? (
-              <p className="text-sm text-muted-foreground">Cargando solicitudes...</p>
-            ) : driverRequests.length > 0 ? (
-              <div className="space-y-4">
-                {driverRequests.map((request) => (
-                  <div key={request.id} className="rounded-lg border p-4 bg-white dark:bg-slate-950">
-                    <p className="font-semibold">Solicitud #{request.id}</p>
-                    <p className="text-sm text-muted-foreground">Ruta: {request.departure}</p>
-                    <p className="text-sm text-muted-foreground">Pasajero: {request.passenger}</p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                      <span className="rounded-full border px-2 py-1">{request.paymentMethod}</span>
-                      <span className="rounded-full border px-2 py-1">{request.status}</span>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {request.status?.toUpperCase() === 'PENDIENTE' ? (
-                        <>
-                          <Button
-                            variant="secondary"
-                            className="bg-green-600 text-white hover:bg-green-700"
-                            onClick={() => handleSolicitudAction(request.id, 'aceptar')}
-                            disabled={requestActionLoading === request.id}
-                          >
-                            {requestActionLoading === request.id ? 'Procesando…' : 'Aceptar'}
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            className="bg-red-600 text-white hover:bg-red-700"
-                            onClick={() => handleSolicitudAction(request.id, 'rechazar')}
-                            disabled={requestActionLoading === request.id}
-                          >
-                            {requestActionLoading === request.id ? 'Procesando…' : 'Rechazar'}
-                          </Button>
-                        </>
-                      ) : null}
-
-                      {request.status?.toUpperCase() === 'ACEPTADA' && request.routeStatus?.toUpperCase() === 'COMPLETADA' && !request.calificadoPorMi ? (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="bg-blue-600 text-white hover:bg-blue-700"
-                          onClick={() => openRatingModal(request, 'CONDUCTOR')}
-                        >
-                          Calificar pasajero
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No hay solicitudes nuevas por el momento.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Routes Grid */}
-        <div className="space-y-6">
-          <Card id="driver-my-routes">
-            <CardHeader>
-              <CardTitle>Rutas publicadas</CardTitle>
-              <CardDescription>Rutas activas en tu perfil</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {routeLoading ? (
-                <p className="text-sm text-muted-foreground">Cargando rutas...</p>
-              ) : driverRoutes.length > 0 ? (
-                <div className="space-y-4">
-                  {driverRoutes.map((route) => (
-                    <Card key={route.id} className="border border-slate-200">
-                      <CardContent>
-                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                          <div>
-                            <p className="font-semibold">Ruta #{route.id}</p>
-                            <p className="text-sm text-muted-foreground">
-                              Salida: {route.departure}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              Cupos: {route.availableSeats}/{route.totalSeats} · ${route.price}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              Puntos de encuentro: {route.meetingPoints?.length ?? 0}
-                            </p>
-                          </div>
-                          <div className="text-right space-y-2">
-                            <p className="text-sm text-muted-foreground">Estado: {route.status}</p>
-                            <p className="text-sm text-muted-foreground">Vehículo: {route.vehiclePlate}</p>
-                            {route.status !== 'COMPLETADA' && (
+            {/* Routes Grid */}
+            <Card id="driver-my-routes">
+              <CardHeader>
+                <CardTitle>Rutas publicadas</CardTitle>
+                <CardDescription>Rutas activas en tu perfil</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {routeLoading ? (
+                  <p className="text-sm text-muted-foreground">Cargando rutas...</p>
+                ) : driverRoutes.length > 0 ? (
+                  <div className="space-y-4">
+                    {driverRoutes.map((route) => (
+                      <Card key={route.id} className="border border-slate-200">
+                        <CardContent className="pt-6">
+                          <div className="flex flex-col gap-4">
+                            {/* Encabezado de ruta */}
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                               <div>
-                                <Button
-                                  className="w-full md:w-auto bg-red-600 text-white hover:bg-red-700"
-                                  onClick={async () => {
-                                    if (!confirm('¿Deseas finalizar esta ruta? Esta acción marcará la ruta como COMPLETADA.')) return
-                                    try {
-                                      await apiClient.post(API_ENDPOINTS.FINALIZE_ROUTE(route.id))
-                                      // Recargar las rutas del conductor
-                                      loadDriverRoutes()
-                                    } catch (err) {
-                                      console.error('Error finalizando ruta:', err)
-                                      alert('No se pudo finalizar la ruta. Revisa la consola para más detalles.')
-                                    }
-                                  }}
-                                >
-                                  Finalizar ruta
-                                </Button>
+                                <p className="font-semibold text-lg">Ruta #{route.id}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  📅 Salida: {route.departure}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  👥 Cupos: {route.availableSeats}/{route.totalSeats} · 💵 ${route.price}
+                                </p>
+                              </div>
+                              <div className="text-right space-y-2">
+                                <p className="text-sm text-muted-foreground">
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                    route.status === 'ACTIVA' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {route.status}
+                                  </span>
+                                </p>
+                                <p className="text-sm text-muted-foreground">🚗 {route.vehiclePlate}</p>
+                                {route.status !== 'COMPLETADA' && (
+                                  <Button
+                                    className="w-full md:w-auto bg-red-600 text-white hover:bg-red-700 text-xs"
+                                    onClick={async () => {
+                                      if (!confirm('¿Deseas finalizar esta ruta? Esta acción marcará la ruta como COMPLETADA.')) return
+                                      try {
+                                        await apiClient.post(API_ENDPOINTS.FINALIZE_ROUTE(route.id))
+                                        loadDriverRoutes()
+                                      } catch (err) {
+                                        console.error('Error finalizando ruta:', err)
+                                        alert('No se pudo finalizar la ruta. Revisa la consola para más detalles.')
+                                      }
+                                    }}
+                                  >
+                                    Finalizar
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Ruta en línea */}
+                            <div className="pt-3 border-t">
+                              <p className="text-xs font-medium text-gray-600 mb-2">📍 Ruta:</p>
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-green-600 font-medium">Inicio</span>
+                                <span className="text-gray-400">━━━━</span>
+                                {route.meetingPoints && route.meetingPoints.length > 0 ? (
+                                  <>
+                                    {route.meetingPoints.map((point, idx) => (
+                                      <div key={idx} className="flex items-center gap-2">
+                                        <span className="bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium text-xs">
+                                          {idx + 1}
+                                        </span>
+                                        <span className="text-gray-400">━━━━</span>
+                                      </div>
+                                    ))}
+                                  </>
+                                ) : null}
+                                <span className="text-red-600 font-medium">Fin</span>
+                              </div>
+                            </div>
+
+                            {/* Puntos de encuentro detallados */}
+                            {route.meetingPoints && route.meetingPoints.length > 0 && (
+                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                <p className="text-xs font-medium text-blue-900 mb-2">
+                                  🚩 {route.meetingPoints.length} Punto{route.meetingPoints.length !== 1 ? 's' : ''} de Encuentro
+                                </p>
+                                <div className="space-y-2">
+                                  {route.meetingPoints.map((point, idx) => (
+                                    <div key={idx} className="text-xs bg-white border border-blue-100 rounded p-2">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold">
+                                          {idx + 1}
+                                        </span>
+                                        <span className="font-medium">{point.name || 'Sin nombre'}</span>
+                                      </div>
+                                      <p className="text-gray-600 ml-7">
+                                        📌 {point.lat?.toFixed(4)}, {point.lng?.toFixed(4)}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Aún no tienes rutas publicadas. Crea una nueva ruta para comenzar a recibir solicitudes.</p>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {/* SOLICITUDES SECTION */}
+        {driverSection === 'driver-requests' && (
+          <Card id="driver-requests" className="border-l-4 border-l-blue-500">
+            <CardHeader>
+              <CardTitle>Solicitudes de pasajeros</CardTitle>
+              <CardDescription>Gestiona las solicitudes de pasajeros para tus rutas</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {requestsLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando solicitudes...</p>
+              ) : driverRequests.length > 0 ? (
+                <div className="space-y-4">
+                  {driverRequests.map((request) => (
+                    <div key={request.id} className="rounded-lg border p-4 bg-white dark:bg-slate-950">
+                      <p className="font-semibold">Solicitud #{request.id}</p>
+                      <p className="text-sm text-muted-foreground">Ruta: {request.departure}</p>
+                      <p className="text-sm text-muted-foreground">Pasajero: {request.passenger}</p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                        <span className="rounded-full border px-2 py-1">{request.paymentMethod}</span>
+                        <span className="rounded-full border px-2 py-1">{request.status}</span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {request.status?.toUpperCase() === 'PENDIENTE' ? (
+                          <>
+                            <Button
+                              variant="secondary"
+                              className="bg-green-600 text-white hover:bg-green-700"
+                              onClick={() => handleSolicitudAction(request.id, 'aceptar')}
+                              disabled={requestActionLoading === request.id}
+                            >
+                              {requestActionLoading === request.id ? 'Procesando…' : 'Aceptar'}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              className="bg-red-600 text-white hover:bg-red-700"
+                              onClick={() => handleSolicitudAction(request.id, 'rechazar')}
+                              disabled={requestActionLoading === request.id}
+                            >
+                              {requestActionLoading === request.id ? 'Procesando…' : 'Rechazar'}
+                            </Button>
+                          </>
+                        ) : null}
+
+                        {request.status?.toUpperCase() === 'ACEPTADA' && request.routeStatus?.toUpperCase() === 'COMPLETADA' && !request.calificadoPorMi ? (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="bg-blue-600 text-white hover:bg-blue-700"
+                            onClick={() => openRatingModal(request, 'CONDUCTOR')}
+                          >
+                            Calificar pasajero
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Aún no tienes rutas publicadas. Crea una nueva ruta para comenzar a recibir solicitudes.</p>
+                <p className="text-sm text-muted-foreground">No hay solicitudes nuevas por el momento.</p>
               )}
             </CardContent>
           </Card>
-        </div>
+        )}
+
+        {/* MIS VEHICULOS SECTION */}
+        {driverSection === 'driver-my-vehicles' && (
+          <div id="driver-my-vehicles">
+            <DriverVehicles />
+          </div>
+        )}
+
+        {/* HISTORIAL DE VIAJES SECTION */}
+        {driverSection === 'driver-travel-history' && (
+          <div id="driver-travel-history">
+            <DriverTravelHistory />
+          </div>
+        )}
+
+        {/* CARTERA SECTION */}
+        {driverSection === 'driver-wallet' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Cartera virtual</CardTitle>
+              <CardDescription>Gestiona tu saldo y visualiza el historial de transacciones</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-xl border border-slate-200 p-4">
+                  <p className="text-sm text-muted-foreground">Saldo actual</p>
+                  <p className="text-3xl font-bold text-green-600">
+                    {walletLoading ? 'Cargando...' : `$ ${walletBalance?.toFixed(0) ?? 0}`}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold">Historial de transacciones</h3>
+                {walletHistoryLoading ? (
+                  <p className="text-sm text-muted-foreground">Cargando historial...</p>
+                ) : walletHistory.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Monto</TableHead>
+                        <TableHead>Saldo</TableHead>
+                        <TableHead>Fecha</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {walletHistory.map((tx) => (
+                        <TableRow key={tx.id}>
+                          <TableCell>{tx.id}</TableCell>
+                          <TableCell>{tx.tipoNombre}</TableCell>
+                          <TableCell>${tx.monto}</TableCell>
+                          <TableCell>${tx.saldoResultante}</TableCell>
+                          <TableCell>{tx.fecha}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No hay transacciones registradas.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
       {ratingModalElement}
       {ratingMessageElement}
     </div>

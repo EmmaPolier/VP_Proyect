@@ -306,15 +306,17 @@ export async function createRoute(req, res) {
              ID_RUT_PEN,
              LATITUD_PEN,
              LONGITUD_PEN,
-             ORDEN_PEN
+             ORDEN_PEN,
+             NOMBRE_PEN
            ) VALUES (
              SEQ_PUNTO_ENCUENTRO.NEXTVAL,
              :routeId,
              :lat,
              :lng,
-             :orden
+             :orden,
+             :nombre
            )`,
-          { routeId, lat: point.lat, lng: point.lng, orden: index + 1 },
+          { routeId, lat: point.lat, lng: point.lng, orden: index + 1, nombre: point.name || null },
           { autoCommit: true }
         );
       }
@@ -1081,7 +1083,8 @@ export async function getDriverRoutes(req, res) {
          p.ID_PEN,
          p.LATITUD_PEN,
          p.LONGITUD_PEN,
-         p.ORDEN_PEN
+         p.ORDEN_PEN,
+         NVL(p.NOMBRE_PEN, 'Punto de encuentro') AS NOMBRE_PEN
        FROM RUTA r
        LEFT JOIN ESTADO_RUTA er ON r.ID_EST_RUT = er.ID_ERU
        LEFT JOIN VEHICULO v ON v.ID_VEH = r.ID_VEH_RUT
@@ -1118,6 +1121,7 @@ export async function getDriverRoutes(req, res) {
           lat: row[10],
           lng: row[11],
           order: row[12],
+          name: row[13],
         });
       }
     }

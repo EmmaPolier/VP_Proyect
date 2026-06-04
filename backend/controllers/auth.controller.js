@@ -433,9 +433,17 @@ export async function login(req, res) {
       perfiles.push({ id: 1, nombre: 'PASAJERO', calificacion: 5.0 });
     }
 
-    // Si tiene múltiples perfiles Y no especificó uno, devolver lista para selector
-    if (perfiles.length > 1 && !perfilId) {
-      console.log('[INFO] Usuario con múltiples perfiles:', documento, perfiles);
+    // Si el usuario tiene perfil de ADMIN, usar ese automáticamente sin preguntar
+    let selectedProfile = null;
+    const adminProfile = perfiles.find(p => p.id === 3); // 3 = ADMIN
+    
+    if (adminProfile && !perfilId) {
+      // Si tiene ADMIN, usarlo automáticamente
+      selectedProfile = adminProfile;
+      console.log('[INFO] Usuario ADMIN detectado, seleccionando automáticamente:', documento);
+    } else if (perfiles.length > 1 && !perfilId) {
+      // Si tiene múltiples perfiles (pero NO es admin) Y no especificó uno, devolver lista para selector
+      console.log('[INFO] Usuario con múltiples perfiles (no admin):', documento, perfiles);
       await connection.close();
       return res.status(200).json({
         selectPerfil: true,
@@ -444,10 +452,10 @@ export async function login(req, res) {
         nombres,
         perfiles: perfiles
       });
+    } else {
+      // Un solo perfil o ya especificó perfilId
+      selectedProfile = perfilId ? perfiles.find(p => p.id === parseInt(perfilId)) : perfiles[0];
     }
-
-    // Determinar perfil a usar
-    let selectedProfile = perfilId ? perfiles.find(p => p.id === parseInt(perfilId)) : perfiles[0];
     
     // Si solicita un perfil que no tiene, rechazar
     if (!selectedProfile) {

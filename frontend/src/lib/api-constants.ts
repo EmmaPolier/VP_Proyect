@@ -43,6 +43,10 @@ export const API_ENDPOINTS = {
 
   // Usuario
   DELETE_ACCOUNT: `${API_BASE_URL}/users/delete-account`,
+  GET_USER_VEHICLES: `${API_BASE_URL}/api/usuario/vehiculos`,
+  CREATE_USER_VEHICLE: `${API_BASE_URL}/api/usuario/vehiculos`,
+  DELETE_USER_VEHICLE: (vehicleId: number) => `${API_BASE_URL}/api/usuario/vehiculos/${vehicleId}`,
+  GET_TRAVEL_HISTORY: `${API_BASE_URL}/api/usuario/historial-viajes`,
 };
 
 export const ESTADO_TIPOS = {

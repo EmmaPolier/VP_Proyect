@@ -14,6 +14,7 @@ import carteraRoutes from './routes/cartera.routes.js';
 import calificacionRoutes from './routes/calificacion.routes.js';
 import historialRoutes from './routes/historial.routes.js';
 import usuarioRoutes from './routes/usuario.routes.js';
+import bcryptjs from 'bcryptjs';
 
 // Cargar .env.local primero, luego .env (para sobreescrituras locales)
 dotenv.config({ path: '.env.local' });
@@ -72,6 +73,35 @@ app.post('/admin/verify-user-testing', async (req, res) => {
     });
   } catch (err) {
     console.error(`[VERIFY-TEST] Error:`, err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (connection) await connection.close();
+  }
+});
+
+// Update user password for testing
+app.post('/admin/update-password-testing', async (req, res) => {
+  const { email, newPassword } = req.body;
+  let connection;
+  try {
+    console.log(`[UPDATE-PASS-TEST] Actualizando contraseña para: ${email}`);
+    
+    const hash = await bcryptjs.hash(newPassword, 10);
+    connection = await getConnection();
+    
+    const result = await connection.execute(
+      `UPDATE USUARIO SET CONTRASENA_USU = :hash WHERE CORREO_USU = :email`,
+      { hash, email },
+      { autoCommit: true }
+    );
+    
+    res.json({ 
+      message: 'Contraseña actualizada', 
+      email,
+      rowsAffected: result.rowsAffected 
+    });
+  } catch (err) {
+    console.error(`[UPDATE-PASS-TEST] Error:`, err);
     res.status(500).json({ error: err.message });
   } finally {
     if (connection) await connection.close();
@@ -270,7 +300,8 @@ app.use('/menu', menuRoutes);
 app.use('/vehicles', vehicleRoutes);
 
 // Rutas de usuarios
-app.use('/users', usuarioRoutes);
+app.use('/api/usuario', usuarioRoutes);
+app.use('/users', usuarioRoutes);  // Mantener para compatibilidad
 
 // Rutas de administración
 app.use('/api/admin', adminRoutes);
