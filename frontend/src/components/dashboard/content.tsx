@@ -136,7 +136,7 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
   const router = useRouter()
 
   const passengerSection = searchParams.get('section') ?? 'buscar'
-  const validPassengerSections = ['buscar', 'viajes', 'cartera', 'carrera', 'perfil']
+  const validPassengerSections = ['buscar', 'viajes', 'cartera', 'carrera', 'perfil', 'configuracion']
   const passengerTabValue = validPassengerSections.includes(passengerSection) ? passengerSection : 'buscar'
   const driverSection = searchParams.get('section') ?? ''
 
@@ -187,6 +187,8 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
   const [ratingsLoading, setRatingsLoading] = useState(false)
   const [requestsLoading, setRequestsLoading] = useState(false)
   const [requestActionLoading, setRequestActionLoading] = useState<number | null>(null)
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false)
+  const [deleteAccountMessage, setDeleteAccountMessage] = useState('')
   const [requestStatusFilter, setRequestStatusFilter] = useState<'ALL' | 'PENDIENTE' | 'ACEPTADA' | 'RECHAZADA' | 'CANCELADA'>('ALL')
   const [routeStatusFilter, setRouteStatusFilter] = useState<'ALL' | 'ACTIVA' | 'COMPLETADA'>('ALL')
   const [fromDateFilter, setFromDateFilter] = useState('')
@@ -309,6 +311,39 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
       }
     } finally {
       setRequestActionLoading(null)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (!confirm('⚠️ ¿Estás seguro de que deseas eliminar tu cuenta? Esta acción es irreversible.')) {
+      return
+    }
+
+    if (!confirm('⚠️ ADVERTENCIA: Se perderán todos tus datos. ¿Deseas continuar?')) {
+      return
+    }
+
+    setDeleteAccountLoading(true)
+    setDeleteAccountMessage('')
+
+    try {
+      // Llamar al endpoint para eliminar la cuenta
+      const response = await apiClient.post(API_ENDPOINTS.DELETE_ACCOUNT, {})
+      setDeleteAccountMessage('✅ ' + (response.message || 'Cuenta eliminada correctamente'))
+      
+      // Limpiar localStorage y redirigir al login después de 2 segundos
+      setTimeout(() => {
+        localStorage.removeItem('currentUser')
+        localStorage.removeItem('rolActivo')
+        localStorage.removeItem('perfilNombre')
+        localStorage.removeItem('usuario')
+        localStorage.removeItem('perfiles')
+        router.push('/login')
+      }, 2000)
+    } catch (error: any) {
+      setDeleteAccountMessage('❌ ' + (error.message || 'No se pudo eliminar la cuenta'))
+    } finally {
+      setDeleteAccountLoading(false)
     }
   }
 
@@ -1219,14 +1254,6 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
     <div className="p-6 space-y-6">
       {/* Tabs */}
       <Tabs value={passengerTabValue} onValueChange={handlePassengerTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6">
-          <TabsTrigger value="buscar">Buscar ruta</TabsTrigger>
-          <TabsTrigger value="viajes">Mis viajes</TabsTrigger>
-          <TabsTrigger value="cartera">Cartera</TabsTrigger>
-          <TabsTrigger value="carrera">Resumen</TabsTrigger>
-          <TabsTrigger value="perfil">Perfil</TabsTrigger>
-        </TabsList>
-
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <Card className="border-0 shadow-sm">
@@ -1777,24 +1804,70 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
           <Card>
             <CardHeader>
               <CardTitle>Mi Perfil</CardTitle>
+              <CardDescription>Información de tu cuenta</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Nombre</label>
-                    <Input placeholder="Tu nombre" />
+                    <Input value={dashboardUser?.nombres || ''} placeholder="Tu nombre" disabled className="bg-muted" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Email</label>
-                    <Input placeholder="tu@email.com" />
+                    <label className="text-sm font-medium">Documento</label>
+                    <Input value={dashboardUser?.documento || ''} placeholder="Documento" disabled className="bg-muted" />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Teléfono</label>
-                  <Input placeholder="+57 XXX XXX XXX" />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Configuración Tab */}
+        <TabsContent value="configuracion">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuración de Cuenta</CardTitle>
+              <CardDescription>Gestiona tu cuenta y privacidad</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Información de cuenta */}
+              <div className="space-y-4 pb-6 border-b">
+                <h3 className="text-lg font-semibold">Información de Cuenta</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Nombre</label>
+                    <p className="text-sm font-medium">{dashboardUser?.nombres || 'N/A'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Documento</label>
+                    <p className="text-sm font-medium">{dashboardUser?.documento || 'N/A'}</p>
+                  </div>
                 </div>
-                <Button className="w-full bg-black text-white hover:bg-black/90">Guardar cambios</Button>
+              </div>
+
+              {/* Zona de peligro */}
+              <div className="space-y-4 pt-6 border-t border-red-200">
+                <h3 className="text-lg font-semibold text-red-600">Zona de Peligro</h3>
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                  <h4 className="font-semibold text-red-900 mb-2">Eliminar Cuenta</h4>
+                  <p className="text-sm text-red-800 mb-4">
+                    ⚠️ Esta acción es irreversible. Se eliminarán todos tus datos, rutas, solicitudes y transacciones.
+                  </p>
+                  <Button
+                    variant="destructive"
+                    onClick={handleDeleteAccount}
+                    disabled={deleteAccountLoading}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {deleteAccountLoading ? 'Eliminando...' : 'Eliminar mi cuenta'}
+                  </Button>
+                  {deleteAccountMessage && (
+                    <div className="mt-3 rounded-lg bg-white p-3 text-sm">
+                      {deleteAccountMessage}
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

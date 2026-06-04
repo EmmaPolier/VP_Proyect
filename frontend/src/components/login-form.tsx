@@ -37,8 +37,6 @@ export function LoginForm({
   const [showPerfils, setShowPerfils] = useState(false)
   const [perfiles, setPerfiles] = useState<any[]>([])
   const [credenciales, setCredenciales] = useState<any>(null)
-  const [selectedRole, setSelectedRole] = useState<number | null>(null)
-  const [showRoleSelector, setShowRoleSelector] = useState(true)
 
   useEffect(() => {
     const perfilParam = searchParams.get("perfil")
@@ -54,25 +52,32 @@ export function LoginForm({
     setLoading(true)
 
     try {
-      // Validar que se haya seleccionado un rol
-      if (!selectedRole) {
-        setError("Debes seleccionar un rol antes de ingresar")
+      // Enviar sin perfilId - dejar que el backend determine cuántos perfiles tiene
+      const response = await axios.post(`${API_URL}/login`, {
+        email,
+        contrasena: password,
+        // NO enviar perfilId - dejar que backend devuelva lista de perfiles si hay múltiples
+      })
+
+      // Si el backend devuelve selectPerfil: true, el usuario tiene múltiples perfiles
+      if (response.data.selectPerfil === true) {
+        console.log('Múltiples perfiles detectados:', response.data.perfiles);
+        setPerfiles(response.data.perfiles || [])
+        setCredenciales({
+          email: response.data.email,
+          documento: response.data.documento,
+          nombres: response.data.nombres
+        })
+        setShowPerfils(true)
         setLoading(false)
         return
       }
 
-      const response = await axios.post(`${API_URL}/login`, {
-        email,
-        contrasena: password,
-        perfilId: selectedRole,
-      })
-
-      // Con perfilId especificado, no debería devolver selectPerfil
-      // Iniciar sesión directamente
+      // Si llegamos aquí, el login fue exitoso con un perfil único
       localStorage.setItem(
         "currentUser",
         JSON.stringify({
-          id: response.data.id,
+          id: response.data.id || response.data.documento,
           email: response.data.email,
           nombres: response.data.nombres,
           documento: response.data.documento,
@@ -194,50 +199,6 @@ export function LoginForm({
     )
   }
 
-  // Selector de rol ANTES de ingresar credenciales
-  if (showRoleSelector && !selectedRole) {
-    return (
-      <div className={cn("flex flex-col gap-6", className)} {...props}>
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">¿Cómo deseas ingresar?</CardTitle>
-            <CardDescription>
-              Selecciona el rol con el que deseas iniciar sesión
-            </CardDescription>
-            {success && (
-              <p className="text-sm text-green-600 mt-2">{success}</p>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <button
-              onClick={() => {
-                setSelectedRole(1)
-                setShowRoleSelector(false)
-                setError("")
-              }}
-              className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-blue-600 hover:bg-blue-50 transition text-left font-semibold text-gray-900"
-            >
-              👤 Ingresar como Pasajero
-            </button>
-            <button
-              onClick={() => {
-                setSelectedRole(2)
-                setShowRoleSelector(false)
-                setError("")
-              }}
-              className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-blue-600 hover:bg-blue-50 transition text-left font-semibold text-gray-900"
-            >
-              🚗 Ingresar como Conductor
-            </button>
-          </CardContent>
-        </Card>
-        <div className="text-center text-sm text-gray-600">
-          ¿No tienes cuenta? <Link href="/signup" className="underline hover:text-blue-600">Registrarse</Link>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
@@ -251,26 +212,6 @@ export function LoginForm({
           )}
           {success && (
             <p className="text-sm text-green-600 mt-2">{success}</p>
-          )}
-          {selectedRole && (
-            <div className="mt-3 p-2 bg-blue-50 rounded border border-blue-200 text-sm">
-              <span className="text-gray-700">
-                {selectedRole === 1 ? '👤 Ingresando como: Pasajero' : '🚗 Ingresando como: Conductor'}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedRole(null)
-                  setShowRoleSelector(true)
-                  setEmail("")
-                  setPassword("")
-                  setError("")
-                }}
-                className="ml-2 text-xs text-blue-600 hover:underline"
-              >
-                Cambiar rol
-              </button>
-            </div>
           )}
         </CardHeader>
         <CardContent>

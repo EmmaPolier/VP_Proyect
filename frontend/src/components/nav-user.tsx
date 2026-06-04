@@ -39,10 +39,22 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const [perfilesState, setPerfilesState] = useState(perfiles)
+  const [perfilNombreActual, setPerfilNombreActual] = useState<string>("")
 
   useEffect(() => {
     setPerfilesState(perfiles)
   }, [perfiles])
+
+  useEffect(() => {
+    // Obtener nombre del perfil actual del localStorage
+    const perfilNombre = localStorage.getItem('perfilNombre')
+    if (perfilNombre) {
+      setPerfilNombreActual(perfilNombre)
+    } else if (rolActual) {
+      // Fallback: deducir del ID
+      setPerfilNombreActual(rolActual === 2 ? 'CONDUCTOR' : rolActual === 3 ? 'ADMIN' : 'PASAJERO')
+    }
+  }, [rolActual])
 
   return (
     <SidebarMenu>
@@ -79,6 +91,11 @@ export function NavUser({
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{user.name}</span>
                   <span className="truncate text-xs">{user.email}</span>
+                  {perfilNombreActual && (
+                    <span className="truncate text-xs text-gray-500 font-semibold">
+                      {perfilNombreActual === 'CONDUCTOR' ? '🚗 Conductor' : perfilNombreActual === 'ADMIN' ? '👨‍💼 Administrador' : '👤 Pasajero'}
+                    </span>
+                  )}
                 </div>
               </div>
             </DropdownMenuLabel>

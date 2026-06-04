@@ -13,6 +13,7 @@ import routeRoutes from './routes/route.routes.js';
 import carteraRoutes from './routes/cartera.routes.js';
 import calificacionRoutes from './routes/calificacion.routes.js';
 import historialRoutes from './routes/historial.routes.js';
+import usuarioRoutes from './routes/usuario.routes.js';
 
 // Cargar .env.local primero, luego .env (para sobreescrituras locales)
 dotenv.config({ path: '.env.local' });
@@ -267,6 +268,9 @@ app.use('/menu', menuRoutes);
 
 // Rutas de vehículos
 app.use('/vehicles', vehicleRoutes);
+
+// Rutas de usuarios
+app.use('/users', usuarioRoutes);
 
 // Rutas de administración
 app.use('/api/admin', adminRoutes);

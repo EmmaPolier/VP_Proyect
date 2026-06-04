@@ -20,11 +20,14 @@ import { TerminalSquareIcon, BotIcon, BookOpenIcon, Settings2Icon, LifeBuoyIcon,
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const [perfiles, setPerfiles] = React.useState<any[]>([])
   const [rolActual, setRolActual] = React.useState<number | null>(null)
+  const [userData, setUserData] = React.useState({ name: "Usuario", email: "email@example.com", avatar: "/avatars/default.jpg" })
 
   React.useEffect(() => {
     // Leer datos del localStorage
     const perfilesStr = localStorage.getItem('perfiles')
     const rolActivoStr = localStorage.getItem('rolActivo')
+    const usuarioStr = localStorage.getItem('usuario')
+    const currentUserStr = localStorage.getItem('currentUser')
     
     if (perfilesStr) {
       setPerfiles(JSON.parse(perfilesStr))
@@ -32,14 +35,27 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
     if (rolActivoStr) {
       setRolActual(parseInt(rolActivoStr))
     }
+    
+    // Leer datos del usuario actual
+    if (usuarioStr) {
+      const usuario = JSON.parse(usuarioStr)
+      setUserData({
+        name: usuario.nombres || "Usuario",
+        email: usuario.email || "email@example.com",
+        avatar: "/avatars/default.jpg"
+      })
+    } else if (currentUserStr) {
+      const currentUser = JSON.parse(currentUserStr)
+      setUserData({
+        name: currentUser.nombres || "Usuario",
+        email: currentUser.email || "email@example.com",
+        avatar: "/avatars/default.jpg"
+      })
+    }
   }, [])
 
   const data = {
-    user: {
-      name: "shadcn",
-      email: "m@example.com",
-      avatar: "/avatars/shadcn.jpg",
-    },
+    user: userData,
   navMain: [
     {
       title: "Playground",

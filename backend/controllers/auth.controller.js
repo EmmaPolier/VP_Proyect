@@ -776,3 +776,165 @@ export async function switchRole(req, res) {
     });
   }
 }
+
+export async function deleteAccount(req, res) {
+  const documento = req.user?.documento;
+
+  console.log('[INFO] Delete account solicitado para:', documento);
+
+  let connection;
+  try {
+    // Validar que el usuario esté autenticado
+    if (!documento) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    connection = await getConnection();
+
+    // Verificar que el usuario existe
+    const userResult = await connection.execute(
+      `SELECT DOCUMENTO_USU FROM USUARIO WHERE DOCUMENTO_USU = :documento`,
+      { documento }
+    );
+
+    if (!userResult.rows || userResult.rows.length === 0) {
+      await connection.close();
+      console.error('[ERROR] Usuario no encontrado para eliminación:', documento);
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    try {
+      // Eliminar en orden correcto para respetar FK constraints
+      // Nota: Cada DELETE será autocommit por defecto en Oracle
+      
+      console.log('[INFO] Eliminando datos dependientes...');
+      
+      // 1. Eliminar CALIFICACION (usa SOL_ID_CAL, RUT_ID_CAL)
+      console.log('[INFO] Eliminando CALIFICACION...');
+      await connection.execute(
+        `DELETE FROM CALIFICACION 
+         WHERE SOL_ID_CAL IN (
+           SELECT ID_SOL FROM SOLICITUD_CUPO
+           WHERE ID_UPE_SOL IN (
+             SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
+           )
+         )`,
+        { documento }
+      );
+
+      // 2. Eliminar HISTORIAL_VIAJE (usa SOL_ID_HIS, RUT_ID_HIS)
+      console.log('[INFO] Eliminando HISTORIAL_VIAJE...');
+      await connection.execute(
+        `DELETE FROM HISTORIAL_VIAJE 
+         WHERE SOL_ID_HIS IN (
+           SELECT ID_SOL FROM SOLICITUD_CUPO
+           WHERE ID_UPE_SOL IN (
+             SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
+           )
+         )`,
+        { documento }
+      );
+
+      // 3. Eliminar SOLICITUD_CUPO (que referencia USUARIO_PERFIL)
+      console.log('[INFO] Eliminando SOLICITUD_CUPO...');
+      await connection.execute(
+        `DELETE FROM SOLICITUD_CUPO 
+         WHERE ID_UPE_SOL IN (
+           SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
+         )`,
+        { documento }
+      );
+
+      // 4. Eliminar CUPO_RUTA (que referencia RUTA)
+      console.log('[INFO] Eliminando CUPO_RUTA...');
+      await connection.execute(
+        `DELETE FROM CUPO_RUTA 
+         WHERE ID_RUT_CRU IN (
+           SELECT ID_RUT FROM RUTA 
+           WHERE ID_UPE_RUT IN (
+             SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
+           )
+         )`,
+        { documento }
+      );
+
+      // 5. Eliminar PUNTO_ENCUENTRO (que referencia RUTA)
+      console.log('[INFO] Eliminando PUNTO_ENCUENTRO...');
+      await connection.execute(
+        `DELETE FROM PUNTO_ENCUENTRO 
+         WHERE ID_RUT_PEN IN (
+           SELECT ID_RUT FROM RUTA 
+           WHERE ID_UPE_RUT IN (
+             SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
+           )
+         )`,
+        { documento }
+      );
+
+      // 6. Eliminar RUTA (que referencia USUARIO_PERFIL)
+      console.log('[INFO] Eliminando RUTA...');
+      await connection.execute(
+        `DELETE FROM RUTA 
+         WHERE ID_UPE_RUT IN (
+           SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento
+         )`,
+        { documento }
+      );
+
+      // 7. Eliminar VEHICULO (que referencia USUARIO)
+      console.log('[INFO] Eliminando VEHICULO...');
+      await connection.execute(
+        `DELETE FROM VEHICULO WHERE DOCUMENTO_USU_VEH = :documento`,
+        { documento }
+      );
+
+      // 8. Eliminar USUARIO_PERFIL (que referencia USUARIO)
+      console.log('[INFO] Eliminando USUARIO_PERFIL...');
+      await connection.execute(
+        `DELETE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento`,
+        { documento }
+      );
+
+      // 9. Eliminar TRANSACCIONES_CARTERA (que referencia USUARIO)
+      console.log('[INFO] Eliminando TRANSACCIONES_CARTERA...');
+      await connection.execute(
+        `DELETE FROM TRANSACCIONES_CARTERA WHERE DOCUMENTO_USU_TRA = :documento`,
+        { documento }
+      );
+
+      // 10. Eliminar VERIFICACION_CORREO (que referencia USUARIO)
+      console.log('[INFO] Eliminando VERIFICACION_CORREO...');
+      await connection.execute(
+        `DELETE FROM VERIFICACION_CORREO WHERE DOCUMENTO_USU_VER = :documento`,
+        { documento }
+      );
+
+      // 11. Eliminar USUARIO (tabla principal)
+      console.log('[INFO] Eliminando USUARIO...');
+      const deleteResult = await connection.execute(
+        `DELETE FROM USUARIO WHERE DOCUMENTO_USU = :documento`,
+        { documento }
+      );
+
+      await connection.close();
+
+      console.log('[INFO] Cuenta eliminada exitosamente:', documento);
+
+      return res.status(200).json({
+        message: 'Cuenta eliminada exitosamente',
+        documento
+      });
+
+    } catch (err) {
+      await connection.close();
+      throw err;
+    }
+
+  } catch (err) {
+    console.error('[ERROR] Error en deleteAccount:', err.message, err.stack);
+    return res.status(500).json({ 
+      error: 'Error al eliminar la cuenta',
+      message: err.message 
+    });
+  }
+}

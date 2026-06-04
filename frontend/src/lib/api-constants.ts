@@ -40,6 +40,9 @@ export const API_ENDPOINTS = {
   WALLET_SALDO: `${API_BASE_URL}/api/cartera/saldo`,
   WALLET_HISTORIAL: `${API_BASE_URL}/api/cartera/historial`,
   WALLET_RECARGA: `${API_BASE_URL}/api/cartera/recarga`,
+
+  // Usuario
+  DELETE_ACCOUNT: `${API_BASE_URL}/users/delete-account`,
 };
 
 export const ESTADO_TIPOS = {
