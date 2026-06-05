@@ -109,21 +109,28 @@ export async function createModel(req, res) {
     }
 
     // Crear modelo
-    const modelResult = await connection.execute(
+    const seqModelo = await connection.execute(
+      `SELECT SEQ_MODELO_VEHICULO.NEXTVAL as nextId FROM DUAL`
+    );
+    const modelId = seqModelo.rows[0][0];
+
+    await connection.execute(
       `INSERT INTO MODELO_VEHICULO (ID_MOD, NOMBRE_MOD, ANIO_MOD)
-       VALUES (SEQ_MODELO_VEHICULO.NEXTVAL, :nombre, :anio)
-       RETURNING ID_MOD INTO :modelId`,
-      { nombre, anio, modelId: { type: 'NUMBER', dir: 'OUT'} },
+       VALUES (:id, :nombre, :anio)`,
+      { id: modelId, nombre, anio },
       { autoCommit: false }
     );
 
-    const modelId = modelResult.outBinds.modelId[0];
-
     // Crear relación MARCA_MODELO_VEH
+    const seqMM = await connection.execute(
+      `SELECT SEQ_MARCA_MODELO_VEH.NEXTVAL as nextId FROM DUAL`
+    );
+    const mmId = seqMM.rows[0][0];
+
     await connection.execute(
       `INSERT INTO MARCA_MODELO_VEH (ID_MM_VEH, ID_MAR_MMV, ID_MOD_MMV, FECHA_CREACION_MMV)
-       VALUES (SEQ_MARCA_MODELO_VEH.NEXTVAL, :brandId, :modelId, SYSDATE)`,
-      { brandId, modelId }
+       VALUES (:id, :brandId, :modelId, SYSDATE)`,
+      { id: mmId, brandId, modelId }
     );
 
     await connection.commit();

@@ -12,38 +12,38 @@ COMMIT;
 -- SECCIÓN 2: INSERTAR MENÚ - CONDUCTOR (IDs 1-7)
 -- =====================================================
 
-INSERT INTO MENU VALUES (1, '/driver/routes', 'Mis Rutas', NULL, 1);
-INSERT INTO MENU VALUES (2, '/driver/requests', 'Solicitudes de Cupo', NULL, 2);
-INSERT INTO MENU VALUES (3, '/driver/vehicles', 'Mis Vehículos', NULL, 3);
-INSERT INTO MENU VALUES (4, '/driver/wallet', 'Cartera / Saldo', NULL, 4);
-INSERT INTO MENU VALUES (5, '/driver/history', 'Historial de Viajes', NULL, 5);
-INSERT INTO MENU VALUES (6, '/driver/profile', 'Mi Perfil', NULL, 6);
-INSERT INTO MENU VALUES (7, '/driver/settings', 'Configuración', NULL, 7);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/driver/routes', 'Mis Rutas', NULL, 1);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/driver/requests', 'Solicitudes de Cupo', NULL, 2);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/driver/vehicles', 'Mis Vehículos', NULL, 3);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/driver/wallet', 'Cartera / Saldo', NULL, 4);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/driver/history', 'Historial de Viajes', NULL, 5);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/driver/profile', 'Mi Perfil', NULL, 6);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/driver/settings', 'Configuración', NULL, 7);
 
 
 -- =====================================================
 -- SECCIÓN 3: INSERTAR MENÚ - PASAJERO (IDs 8-13)
 -- =====================================================
 
-INSERT INTO MENU VALUES (8, '/passenger/search', 'Buscar Rutas', NULL, 1);
-INSERT INTO MENU VALUES (9, '/passenger/my-trips', 'Mis Viajes', NULL, 2);
-INSERT INTO MENU VALUES (10, '/passenger/requests', 'Mis Solicitudes', NULL, 3);
-INSERT INTO MENU VALUES (11, '/passenger/wallet', 'Cartera / Saldo', NULL, 4);
-INSERT INTO MENU VALUES (12, '/passenger/profile', 'Mi Perfil', NULL, 5);
-INSERT INTO MENU VALUES (13, '/passenger/settings', 'Configuración', NULL, 6);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/passenger/search', 'Buscar Rutas', NULL, 1);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/passenger/my-trips', 'Mis Viajes', NULL, 2);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/passenger/requests', 'Mis Solicitudes', NULL, 3);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/passenger/wallet', 'Cartera / Saldo', NULL, 4);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/passenger/profile', 'Mi Perfil', NULL, 5);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/passenger/settings', 'Configuración', NULL, 6);
 
 
 -- =====================================================
 -- SECCIÓN 4: INSERTAR MENÚ - ADMIN (IDs 14-20)
 -- =====================================================
 
-INSERT INTO MENU VALUES (14, '/admin/users', 'Gestión de Usuarios', NULL, 1);
-INSERT INTO MENU VALUES (15, '/admin/vehicles', 'Gestión de Vehículos', NULL, 2);
-INSERT INTO MENU VALUES (16, '/admin/routes', 'Gestión de Rutas', NULL, 3);
-INSERT INTO MENU VALUES (17, '/admin/requests', 'Gestión de Solicitudes', NULL, 4);
-INSERT INTO MENU VALUES (18, '/admin/catalogs', 'Catálogos', NULL, 5);
-INSERT INTO MENU VALUES (19, '/admin/reports', 'Reportes', NULL, 6);
-INSERT INTO MENU VALUES (20, '/admin/settings', 'Configuración', NULL, 7);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/admin/users', 'Gestión de Usuarios', NULL, 1);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/admin/vehicles', 'Gestión de Vehículos', NULL, 2);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/admin/routes', 'Gestión de Rutas', NULL, 3);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/admin/requests', 'Gestión de Solicitudes', NULL, 4);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/admin/catalogs', 'Catálogos', NULL, 5);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/admin/reports', 'Reportes', NULL, 6);
+INSERT INTO MENU VALUES (SEQ_MENU.NEXTVAL, '/admin/settings', 'Configuración', NULL, 7);
 
 COMMIT;
 

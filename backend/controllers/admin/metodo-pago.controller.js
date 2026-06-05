@@ -85,13 +85,18 @@ export async function createMetodoPago(req, res) {
       return errorResponse(res, null, 'El método de pago ya existe', 409);
     }
 
+    const seqResult = await connection.execute(
+      `SELECT SEQ_METODO_PAGO.NEXTVAL as nextId FROM DUAL`
+    );
+    const nextId = seqResult.rows[0][0];
+
     await connection.execute(
       `INSERT INTO METODO_PAGO (ID_MPA, NOMBRE_MPA)
-       VALUES (SEQ_METODO_PAGO.NEXTVAL, :nombre)`,
-      { nombre }
+       VALUES (:id, :nombre)`,
+      { id: nextId, nombre }
     );
 
-    successResponse(res, { nombre }, 'Método de pago creado exitosamente', 201);
+    successResponse(res, { id: nextId, nombre }, 'Método de pago creado exitosamente', 201);
   } catch (error) {
     errorResponse(res, error, 'Error al crear método de pago', 500);
   } finally {

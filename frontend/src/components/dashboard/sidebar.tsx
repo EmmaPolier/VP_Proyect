@@ -79,18 +79,19 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
       setPerfiles(JSON.parse(perfilesStr))
     }
     
-    let rol = 1 // default to pasajero
-    if (rolActivoStr) {
-      rol = parseInt(rolActivoStr)
-      setRolActual(rol)
-    }
-    
     if (userStr) {
       try {
         const user = JSON.parse(userStr) as CurrentUser
         setCurrentUser(user)
         
-        // Cargar menú dinámico usando el rol activo (rolActual)
+        // Determinar rol: primero de rolActivo, luego de id_perfil del usuario actual
+        let rol = user.id_perfil || 1 // default to pasajero (1)
+        if (rolActivoStr) {
+          rol = parseInt(rolActivoStr)
+        }
+        setRolActual(rol)
+        
+        // Cargar menú dinámico usando el rol activo
         fetchMenu(rol)
         if (rol === 1 || rol === 2) {
           loadWalletBalance()

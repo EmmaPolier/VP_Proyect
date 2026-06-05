@@ -121,10 +121,15 @@ export async function createModelo(req, res) {
     );
 
     // Crear la relación marca-modelo
+    const seqMMResult = await connection.execute(
+      `SELECT SEQ_MARCA_MODELO_VEH.NEXTVAL as nextId FROM DUAL`
+    );
+    const nextMMId = seqMMResult.rows[0][0];
+
     await connection.execute(
       `INSERT INTO MARCA_MODELO_VEH (ID_MM_VEH, ID_MAR_MMV, ID_MOD_MMV, FECHA_CREACION_MMV)
-       VALUES (SEQ_MARCA_MODELO_VEH.NEXTVAL, :brandId, :modeloId, SYSDATE)`,
-      { brandId, modeloId }
+       VALUES (:id, :brandId, :modeloId, SYSDATE)`,
+      { id: nextMMId, brandId, modeloId }
     );
 
     successResponse(res, { id: modeloId, nombre, ano, brandId }, 'Modelo creado exitosamente', 201);

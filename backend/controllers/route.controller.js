@@ -970,11 +970,15 @@ export async function updateSolicitudStatus(req, res) {
         const currentBalance = Number(userBalanceRes.rows[0][0]);
         const newBalance = currentBalance - Number(precioRuta);
         
+        const seqTRA1 = await connection.execute(
+          `SELECT SEQ_TRANSACCIONES_CARTERA.NEXTVAL as nextId FROM DUAL`
+        );
+        const traId1 = seqTRA1.rows[0][0];
         await connection.execute(
           `INSERT INTO TRANSACCIONES_CARTERA 
            (ID_TRA, DOCUMENTO_USU_TRA, ID_TTR_TRA, MONTO_TRA, SALDO_RESULTANTE_TRA, FECHA_REALIZACION_TRA)
-           VALUES (SEQ_TRANSACCIONES_CARTERA.NEXTVAL, :doc, 2, :monto, :newBalance, SYSDATE)`,
-          { doc: docPasajero, monto: Number(precioRuta), newBalance },
+           VALUES (:id, :doc, 2, :monto, :newBalance, SYSDATE)`,
+          { id: traId1, doc: docPasajero, monto: Number(precioRuta), newBalance },
           { autoCommit: false }
         );
 
@@ -1303,18 +1307,22 @@ export async function finalizeRoute(req, res) {
         const current = balRes.rows.length ? Number(balRes.rows[0][0]) : 0;
         const newSaldo = +(current - s.monto).toFixed(2);
         await connection.execute(`UPDATE USUARIO SET SALDO_CARTERA_USU = :newSaldo WHERE DOCUMENTO_USU = :doc`, { newSaldo, doc: s.documento });
+        const seqTRA2 = await connection.execute(`SELECT SEQ_TRANSACCIONES_CARTERA.NEXTVAL as nextId FROM DUAL`);
+        const traId2 = seqTRA2.rows[0][0];
         await connection.execute(
           `INSERT INTO TRANSACCIONES_CARTERA (ID_TRA, DOCUMENTO_USU_TRA, ID_TTR_TRA, MONTO_TRA, SALDO_RESULTANTE_TRA, FECHA_REALIZACION_TRA)
-           VALUES (SEQ_TRANSACCIONES_CARTERA.NEXTVAL, :doc, :tipoId, :monto, :saldo, SYSDATE)`,
-          { doc: s.documento, tipoId: pagoTipoId, monto: s.monto, saldo: newSaldo }
+           VALUES (:id, :doc, :tipoId, :monto, :saldo, SYSDATE)`,
+          { id: traId2, doc: s.documento, tipoId: pagoTipoId, monto: s.monto, saldo: newSaldo }
         );
         totalToDriver += s.monto;
       }
 
+      const seqHIS = await connection.execute(`SELECT SEQ_HISTORIAL_VIAJE.NEXTVAL as nextId FROM DUAL`);
+      const hisId = seqHIS.rows[0][0];
       await connection.execute(
         `INSERT INTO HISTORIAL_VIAJE (ID_HIS, SOL_ID_HIS, RUT_ID_HIS, DOCUMENTO_USU_HIS, ROL_VIAJE_HIS, FECHA_VIAJE_HIS)
-         VALUES (SEQ_HISTORIAL_VIAJE.NEXTVAL, :solId, :rutId, :doc, 'PASAJERO', SYSDATE)`,
-        { solId: s.id, rutId: routeId, doc: s.documento }
+         VALUES (:id, :solId, :rutId, :doc, 'PASAJERO', SYSDATE)`,
+        { id: hisId, solId: s.id, rutId: routeId, doc: s.documento }
       );
 
       if (completedCupoStateId) {
@@ -1337,10 +1345,12 @@ export async function finalizeRoute(req, res) {
         const drvCurrent = drvBalRes.rows.length ? Number(drvBalRes.rows[0][0]) : 0;
         const drvNew = +(drvCurrent + totalToDriver).toFixed(2);
         await connection.execute(`UPDATE USUARIO SET SALDO_CARTERA_USU = :drvNew WHERE DOCUMENTO_USU = :doc`, { drvNew, doc: driverDoc });
+        const seqTRA3 = await connection.execute(`SELECT SEQ_TRANSACCIONES_CARTERA.NEXTVAL as nextId FROM DUAL`);
+        const traId3 = seqTRA3.rows[0][0];
         await connection.execute(
           `INSERT INTO TRANSACCIONES_CARTERA (ID_TRA, DOCUMENTO_USU_TRA, ID_TTR_TRA, MONTO_TRA, SALDO_RESULTANTE_TRA, FECHA_REALIZACION_TRA)
-           VALUES (SEQ_TRANSACCIONES_CARTERA.NEXTVAL, :doc, :tipoId, :monto, :saldo, SYSDATE)`,
-          { doc: driverDoc, tipoId: recargaTipoId, monto: totalToDriver, saldo: drvNew }
+           VALUES (:id, :doc, :tipoId, :monto, :saldo, SYSDATE)`,
+          { id: traId3, doc: driverDoc, tipoId: recargaTipoId, monto: totalToDriver, saldo: drvNew }
         );
       }
     }

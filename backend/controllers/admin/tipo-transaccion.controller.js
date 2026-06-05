@@ -86,13 +86,18 @@ export async function createTipoTransaccion(req, res) {
       return errorResponse(res, null, 'El tipo de transacción ya existe', 409);
     }
 
+    const seqResult = await connection.execute(
+      `SELECT SEQ_TIPO_TRANSACCION.NEXTVAL as nextId FROM DUAL`
+    );
+    const nextId = seqResult.rows[0][0];
+
     await connection.execute(
       `INSERT INTO TIPO_TRANSACCION (ID_TTR, NOMBRE_TTR, DESCRIPCION_TTR)
-       VALUES (SEQ_TIPO_TRANSACCION.NEXTVAL, :nombre, :descripcion)`,
-      { nombre, descripcion }
+       VALUES (:id, :nombre, :descripcion)`,
+      { id: nextId, nombre, descripcion }
     );
 
-    successResponse(res, { nombre, descripcion }, 'Tipo de transacción creado exitosamente', 201);
+    successResponse(res, { id: nextId, nombre, descripcion }, 'Tipo de transacción creado exitosamente', 201);
   } catch (error) {
     errorResponse(res, error, 'Error al crear tipo de transacción', 500);
   } finally {

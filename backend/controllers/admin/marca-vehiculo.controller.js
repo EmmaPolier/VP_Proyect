@@ -85,13 +85,18 @@ export async function createMarca(req, res) {
       return errorResponse(res, null, 'La marca ya existe', 409);
     }
 
+    const seqResult = await connection.execute(
+      `SELECT SEQ_MARCA_VEHICULO.NEXTVAL as nextId FROM DUAL`
+    );
+    const nextId = seqResult.rows[0][0];
+
     await connection.execute(
       `INSERT INTO MARCA_VEHICULO (ID_MAR, NOMBRE_MAR)
-       VALUES (SEQ_MARCA_VEHICULO.NEXTVAL, :nombre)`,
-      { nombre }
+       VALUES (:id, :nombre)`,
+      { id: nextId, nombre }
     );
 
-    successResponse(res, { nombre }, 'Marca creada exitosamente', 201);
+    successResponse(res, { id: nextId, nombre }, 'Marca creada exitosamente', 201);
   } catch (error) {
     errorResponse(res, error, 'Error al crear marca', 500);
   } finally {

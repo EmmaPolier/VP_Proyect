@@ -68,6 +68,7 @@ export function InputOTPForm() {
       const response = await axios.post(`${API_URL}/verify`, {
         email: pendingEmail,
         code,
+        type: pendingType,
       })
 
       localStorage.setItem(
@@ -75,10 +76,12 @@ export function InputOTPForm() {
         JSON.stringify({
           id: response.data.id,
           email: response.data.email,
-          id_perfil: response.data.role === "CONDUCTOR" ? 2 : response.data.role === "ADMIN" ? 3 : 1,
+          id_perfil: response.data.id_perfil,
           type: response.data.role === "CONDUCTOR" ? "driver" : response.data.role === "ADMIN" ? "admin" : "passenger",
+          token: response.data.token,
         })
       )
+      localStorage.setItem("rolActivo", response.data.id_perfil.toString())
       localStorage.removeItem("pendingVerification")
       router.push("/dashboard")
     } catch (err: any) {

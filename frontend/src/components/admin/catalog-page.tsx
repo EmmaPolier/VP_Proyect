@@ -21,6 +21,7 @@ import { useCrud } from '@/hooks/use-crud';
 import { DataTable, DataTableColumn } from '@/components/admin/data-table';
 import { CRUDModal } from '@/components/admin/crud-modal';
 import { CATALOG_CONFIG, ESTADO_TIPOS } from '@/lib/api-constants';
+import { apiClient } from '@/lib/api-client';
 
 interface CatalogPageProps {
   tabla: string;
@@ -140,21 +141,84 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
   };
 
   const handleModalSubmit = async (data: any) => {
-    const cleanedData = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== '' && value !== undefined)
-    );
+    try {
+      // Limpiar datos vacíos
+      let cleanedData = Object.fromEntries(
+        Object.entries(data).filter(([, value]) => value !== '' && value !== undefined)
+      );
 
-    if (selectedItem?.id) {
-      await updateItem(selectedItem.id, cleanedData);
-    } else {
-      await createItem(cleanedData);
+      // Convertir tipos según la configuración
+      const fieldTypes = config.fieldTypes || {};
+      cleanedData = Object.fromEntries(
+        Object.entries(cleanedData).map(([key, value]) => {
+          if (fieldTypes[key] === 'number' && value !== null && value !== undefined) {
+            return [key, Number(value)];
+          }
+          if (fieldTypes[key] === 'checkbox') {
+            return [key, value === true || value === 'true' || value === 'S'];
+          }
+          return [key, value];
+        })
+      );
+
+      console.log('[DEBUG] Datos a enviar:', cleanedData);
+
+      // Manejo especial para permisos (tabla con dos IDs)
+      if (tabla === 'permisos' && selectedItem?.id) {
+        // El ID es formato "idMenu_idPerfil", extraer ambos
+        const [idMenu, idPerfilOriginal] = selectedItem.id.split('_').map(Number);
+        
+        console.log('[DEBUG] Actualizando permiso:', { 
+          idMenu, 
+          idPerfilOriginal,
+          idPerfilNuevo: cleanedData.idPerfil,
+          cleanedData 
+        });
+
+        // Si el usuario cambió el perfil, enviarlo como newIdPerfil
+        if (cleanedData.idPerfil && Number(cleanedData.idPerfil) !== idPerfilOriginal) {
+          cleanedData.newIdPerfil = cleanedData.idPerfil;
+        }
+
+        // Remover idPerfil de cleanedData ya que va en la URL
+        delete cleanedData.idPerfil;
+        delete cleanedData.idMenu;
+
+        const response = await apiClient.put(`${endpoint}/${idMenu}/${idPerfilOriginal}`, cleanedData);
+        console.log('[DEBUG] Respuesta de actualización:', response);
+        if (response.success) {
+          setModalOpen(false);
+          setPage(1);
+          await fetchItems(1);
+        }
+        return;
+      }
+
+      if (selectedItem?.id) {
+        await updateItem(selectedItem.id, cleanedData);
+      } else {
+        await createItem(cleanedData);
+      }
+    } catch (err) {
+      console.error('[ERROR] Error en handleModalSubmit:', err);
     }
   };
 
   const handleConfirmDelete = async () => {
     if (deleteConfirm?.id) {
-      await deleteItem(deleteConfirm.id);
-      setDeleteConfirm(null);
+      // Manejo especial para permisos (tabla con dos IDs)
+      if (tabla === 'permisos') {
+        const [idMenu, idPerfil] = deleteConfirm.id.split('_').map(Number);
+        const response = await apiClient.delete(`${endpoint}/${idMenu}/${idPerfil}`);
+        if (response.success) {
+          setDeleteConfirm(null);
+          setPage(1);
+          await fetchItems(1);
+        }
+      } else {
+        await deleteItem(deleteConfirm.id);
+        setDeleteConfirm(null);
+      }
     }
   };
 
@@ -249,7 +313,7 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
             return {
               name: field,
               label: field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1'),
-              type: type as 'text' | 'number' | 'email' | 'textarea' | 'select',
+              type: type as 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' | 'date' | 'password',
               required,
               placeholder: field.includes('descripcion') ? 'Opcional' : undefined,
             };

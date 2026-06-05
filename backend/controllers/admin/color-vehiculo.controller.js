@@ -85,13 +85,18 @@ export async function createColor(req, res) {
       return errorResponse(res, null, 'El color ya existe', 409);
     }
 
+    const seqResult = await connection.execute(
+      `SELECT SEQ_COLOR_VEHICULO.NEXTVAL as nextId FROM DUAL`
+    );
+    const nextId = seqResult.rows[0][0];
+
     await connection.execute(
       `INSERT INTO COLOR_VEHICULO (ID_COL, NOMBRE_COL)
-       VALUES (SEQ_COLOR_VEHICULO.NEXTVAL, :nombre)`,
-      { nombre }
+       VALUES (:id, :nombre)`,
+      { id: nextId, nombre }
     );
 
-    successResponse(res, { nombre }, 'Color creado exitosamente', 201);
+    successResponse(res, { id: nextId, nombre }, 'Color creado exitosamente', 201);
   } catch (error) {
     errorResponse(res, error, 'Error al crear color', 500);
   } finally {

@@ -38,10 +38,15 @@ export async function recargarCartera(req, res) {
 
     // Insertar transacción en TRANSACCIONES_CARTERA
     const tipoId = tipoTransaccionId || 1; // 1 = RECARGA por convención
+    const seqTRA = await connection.execute(
+      `SELECT SEQ_TRANSACCIONES_CARTERA.NEXTVAL as nextId FROM DUAL`
+    );
+    const traId = seqTRA.rows[0][0];
+
     const insertRes = await connection.execute(
       `INSERT INTO TRANSACCIONES_CARTERA (ID_TRA, DOCUMENTO_USU_TRA, ID_TTR_TRA, MONTO_TRA, SALDO_RESULTANTE_TRA, FECHA_REALIZACION_TRA)
-       VALUES (SEQ_TRANSACCIONES_CARTERA.NEXTVAL, :doc, :tipoId, :monto, :saldo, SYSDATE)`,
-      { doc: documento, tipoId: parseInt(tipoId), monto: parseFloat(monto), saldo: nuevaSaldo },
+       VALUES (:id, :doc, :tipoId, :monto, :saldo, SYSDATE)`,
+      { id: traId, doc: documento, tipoId: parseInt(tipoId), monto: parseFloat(monto), saldo: nuevaSaldo },
       { autoCommit: false }
     );
 

@@ -159,6 +159,25 @@ export function CRUDModal({
                       </option>
                     ))}
                   </select>
+                ) : field.type === 'checkbox' ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      id={field.name}
+                      name={field.name}
+                      type="checkbox"
+                      checked={form.values[field.name as keyof typeof form.values] === true || form.values[field.name as keyof typeof form.values] === 'S'}
+                      onChange={(e) =>
+                        form.setFieldValue(field.name, e.target.checked)
+                      }
+                      onBlur={form.handleBlur}
+                      className={`w-4 h-4 border rounded focus:outline-none focus:ring-2 focus:ring-primary
+                        ${hasError ? 'border-red-500' : 'border-gray-300'}
+                      `}
+                    />
+                    <label htmlFor={field.name} className="text-sm font-medium cursor-pointer">
+                      {field.label}
+                    </label>
+                  </div>
                 ) : field.type === 'textarea' ? (
                   <textarea
                     id={field.name}

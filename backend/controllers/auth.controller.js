@@ -95,10 +95,12 @@ export async function register(req, res) {
       console.log('[INFO] Usuario existente agregando perfil:', nombrePerfil);
       
       // El usuario ya existe, solo agregar el nuevo perfil
+      const seqUPE1 = await connection.execute(`SELECT SEQ_USUARIO_PERFIL.NEXTVAL as nextId FROM DUAL`);
+      const upeId1 = seqUPE1.rows[0][0];
       await connection.execute(
         `INSERT INTO USUARIO_PERFIL (ID_UPE, DOCUMENTO_USU_UPE, ID_PER_UPE, CALIFICACION_UPE, FECHA_ASIGNACION_UPE)
-         VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, :document, :perfilId, 5.0, SYSDATE)`,
-        { document: userDoc, perfilId }
+         VALUES (:id, :document, :perfilId, 5.0, SYSDATE)`,
+        { id: upeId1, document: userDoc, perfilId }
       );
 
       // Limpiar códigos OTP antiguos para este documento
@@ -173,10 +175,12 @@ export async function register(req, res) {
       // (El usuario puede cambiar el email pero mantener el documento con otro perfil)
       console.log('[INFO] Documento existente con diferente perfil y email');
       
+      const seqUPE2 = await connection.execute(`SELECT SEQ_USUARIO_PERFIL.NEXTVAL as nextId FROM DUAL`);
+      const upeId2 = seqUPE2.rows[0][0];
       await connection.execute(
         `INSERT INTO USUARIO_PERFIL (ID_UPE, DOCUMENTO_USU_UPE, ID_PER_UPE, CALIFICACION_UPE, FECHA_ASIGNACION_UPE)
-         VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, :document, :perfilId, 5.0, SYSDATE)`,
-        { document: existingDocEmail, perfilId }
+         VALUES (:id, :document, :perfilId, 5.0, SYSDATE)`,
+        { id: upeId2, document: existingDocEmail, perfilId }
       );
 
       await connection.close();
@@ -236,25 +240,29 @@ export async function register(req, res) {
     );
 
     // Asignar perfil
+    const seqUPE3 = await connection.execute(`SELECT SEQ_USUARIO_PERFIL.NEXTVAL as nextId FROM DUAL`);
+    const upeId3 = seqUPE3.rows[0][0];
     await connection.execute(
       `INSERT INTO USUARIO_PERFIL (ID_UPE, DOCUMENTO_USU_UPE, ID_PER_UPE, CALIFICACION_UPE, FECHA_ASIGNACION_UPE)
-       VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, :document, :perfilId, 5.0, SYSDATE)`,
-      { document: docValue, perfilId }
+       VALUES (:id, :document, :perfilId, 5.0, SYSDATE)`,
+      { id: upeId3, document: docValue, perfilId }
     );
 
     // Generar OTP
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
+    const seqVER = await connection.execute(`SELECT SEQ_VERIFICACION_CORREO.NEXTVAL as nextId FROM DUAL`);
+    const verId = seqVER.rows[0][0];
     await connection.execute(
       `INSERT INTO VERIFICACION_CORREO (
         ID_VER, DOCUMENTO_USU_VER, CODIGO_VER,
         FECHA_EXPIRACION_VER, USADO_VER, FECHA_CREACION_VER
       ) VALUES (
-        SEQ_VERIFICACION_CORREO.NEXTVAL, :document, :code,
+        :id, :document, :code,
         :expiry, 'N', SYSDATE
       )`,
-      { document: docValue, code, expiry }
+      { id: verId, document: docValue, code, expiry }
     );
 
     // Enviar OTP (sin bloquear si falla)
@@ -295,7 +303,7 @@ export async function register(req, res) {
 }
 
 export async function verify(req, res) {
-  const { email, code } = req.body;
+  const { email, code, type } = req.body;
 
   let connection;
   try {
@@ -345,21 +353,51 @@ export async function verify(req, res) {
       { documento }
     );
 
-    // Obtener perfil del usuario
+    // Obtener perfil del usuario - usar el type enviado del frontend si está disponible
+    let perfilId = 1; // default a PASAJERO
+    
+    if (type === 'driver') {
+      perfilId = 2;
+    } else if (type === 'admin') {
+      perfilId = 3;
+    }
+
+    // Verificar que el usuario tiene este perfil
     const perfResult = await connection.execute(
-      `SELECT ID_PER_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento`,
-      { documento }
+      `SELECT ID_PER_UPE FROM USUARIO_PERFIL 
+       WHERE DOCUMENTO_USU_UPE = :documento AND ID_PER_UPE = :perfilId`,
+      { documento, perfilId }
     );
 
-    const perfilId = perfResult.rows && perfResult.rows.length > 0 ? perfResult.rows[0][0] : 1;
+    if (!perfResult.rows || perfResult.rows.length === 0) {
+      // Si no encuentra el perfil especificado, obtener cualquier perfil disponible
+      const anyPerfResult = await connection.execute(
+        `SELECT ID_PER_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento ORDER BY ID_UPE DESC LIMIT 1`,
+        { documento }
+      );
+      
+      if (anyPerfResult.rows && anyPerfResult.rows.length > 0) {
+        perfilId = anyPerfResult.rows[0][0];
+      }
+    }
+
     const perfilNombre = perfilId === 2 ? 'CONDUCTOR' : perfilId === 3 ? 'ADMIN' : 'PASAJERO';
 
     await connection.close();
+
+    // Generar JWT con el perfil verificado
+    const token = jwt.sign(
+      { documento, email, perfil: perfilId },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
     return res.json({
       id: documento,
       email,
       role: perfilNombre,
+      id_perfil: perfilId,
+      token,
       message: 'Email verificado exitosamente'
     });
   } catch (err) {
@@ -486,10 +524,12 @@ export async function login(req, res) {
 
     // Si no hay perfiles (caso raro), usar PASAJERO por defecto
     if (perfiles.length === 0) {
+      const seqUPE4 = await connection.execute(`SELECT SEQ_USUARIO_PERFIL.NEXTVAL as nextId FROM DUAL`);
+      const upeId4 = seqUPE4.rows[0][0];
       await connection.execute(
         `INSERT INTO USUARIO_PERFIL (ID_UPE, DOCUMENTO_USU_UPE, ID_PER_UPE, CALIFICACION_UPE, FECHA_ASIGNACION_UPE)
-         VALUES (SEQ_USUARIO_PERFIL.NEXTVAL, :documento, 1, 5.0, SYSDATE)`,
-        { documento }
+         VALUES (:id, :documento, 1, 5.0, SYSDATE)`,
+        { id: upeId4, documento }
       );
       perfiles.push({ id: 1, nombre: 'PASAJERO', calificacion: 5.0 });
     }

@@ -109,14 +109,19 @@ export async function createPerfil(req, res) {
       return errorResponse(res, null, 'El perfil ya existe', 409);
     }
 
+    const seqResult = await connection.execute(
+      `SELECT SEQ_PERFIL.NEXTVAL as nextId FROM DUAL`
+    );
+    const nextId = seqResult.rows[0][0];
+
     // Insertar
     await connection.execute(
       `INSERT INTO PERFIL (ID_PER, NOMBRE_PER, DESCRIPCION_PER, FECHA_CREACION_PER)
-       VALUES (SEQ_PERFIL.NEXTVAL, :nombre, :descripcion, SYSDATE)`,
-      { nombre, descripcion }
+       VALUES (:id, :nombre, :descripcion, SYSDATE)`,
+      { id: nextId, nombre, descripcion }
     );
 
-    successResponse(res, { nombre, descripcion }, 'Perfil creado exitosamente', 201);
+    successResponse(res, { id: nextId, nombre, descripcion }, 'Perfil creado exitosamente', 201);
   } catch (error) {
     errorResponse(res, error, 'Error al crear perfil', 500);
   } finally {

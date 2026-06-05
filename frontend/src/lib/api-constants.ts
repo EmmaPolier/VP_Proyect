@@ -14,6 +14,9 @@ export const API_ENDPOINTS = {
   ESTADOS: (tipo: string) => `${API_BASE_URL}/api/admin/catalogs/estados/${tipo}`,
   METODOS_PAGO: `${API_BASE_URL}/api/admin/catalogs/metodos-pago`,
   TIPOS_TRANSACCION: `${API_BASE_URL}/api/admin/catalogs/tipos-transaccion`,
+  MENUS: `${API_BASE_URL}/api/admin/menu/menus`,
+  PERMISOS: `${API_BASE_URL}/api/admin/menu/permisos`,
+  PERMISOS_BY_PERFIL: (perfilId: number) => `${API_BASE_URL}/api/admin/menu/permisos/perfil/${perfilId}`,
   USUARIOS: `${API_BASE_URL}/api/admin/usuarios`,
   VEHICULOS: `${API_BASE_URL}/api/admin/vehiculos`,
 
@@ -175,6 +178,34 @@ export const CATALOG_CONFIG = {
       fechaRegistro: 'date',
     },
     requiredFields: ['placa', 'documentoUsuario', 'idMarca', 'idModelo', 'idColor', 'idEstado', 'soatUrl', 'licenciaUrl', 'tarjetaUrl', 'vehiculoUrl'],
+  },
+  menus: {
+    label: 'Menús',
+    icon: '📋',
+    endpoint: API_ENDPOINTS.MENUS,
+    fields: ['nombre', 'url', 'orden'],
+    formFields: ['url', 'nombre', 'idPadre', 'orden'],
+    fieldTypes: {
+      orden: 'number',
+      idPadre: 'number',
+    },
+    requiredFields: ['url', 'nombre', 'orden'],
+  },
+  permisos: {
+    label: 'Permisos de Menú',
+    icon: '🔐',
+    endpoint: API_ENDPOINTS.PERMISOS,
+    fields: ['nombreMenu', 'nombrePerfil', 'insert', 'update', 'delete', 'select'],
+    formFields: ['idMenu', 'idPerfil', 'insert', 'update', 'delete', 'select'],
+    fieldTypes: {
+      idMenu: 'number',
+      idPerfil: 'number',
+      insert: 'checkbox',
+      update: 'checkbox',
+      delete: 'checkbox',
+      select: 'checkbox',
+    },
+    requiredFields: ['idMenu', 'idPerfil'],
   },
 };
 
