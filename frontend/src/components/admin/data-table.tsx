@@ -39,6 +39,9 @@ interface DataTableProps<T> {
   totalPages?: number;
   onEdit?: (item: T) => void;
   onDelete?: (item: T) => void;
+  onCustomAction?: (item: T) => void;
+  customActionLabel?: string;
+  customActionIcon?: React.ReactNode;
   onPageChange?: (page: number) => void;
   emptyMessage?: string;
 }
@@ -53,6 +56,9 @@ export function DataTable<T extends { id?: number }>({
   totalPages = 0,
   onEdit,
   onDelete,
+  onCustomAction,
+  customActionLabel,
+  customActionIcon,
   onPageChange,
   emptyMessage = 'No hay datos disponibles',
 }: DataTableProps<T>) {
@@ -71,7 +77,7 @@ export function DataTable<T extends { id?: number }>({
                   {col.header}
                 </TableHead>
               ))}
-              {(onEdit || onDelete) && (
+              {(onEdit || onDelete || onCustomAction) && (
                 <TableHead className="w-24">Acciones</TableHead>
               )}
             </TableRow>
@@ -80,7 +86,7 @@ export function DataTable<T extends { id?: number }>({
             {loading ? (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length + (onEdit || onDelete ? 1 : 0)}
+                  colSpan={columns.length + (onEdit || onDelete || onCustomAction ? 1 : 0)}
                   className="text-center py-8"
                 >
                   <div className="flex items-center justify-center">
@@ -92,7 +98,7 @@ export function DataTable<T extends { id?: number }>({
             ) : data.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length + (onEdit || onDelete ? 1 : 0)}
+                  colSpan={columns.length + (onEdit || onDelete || onCustomAction ? 1 : 0)}
                   className="text-center py-8 text-muted-foreground"
                 >
                   {emptyMessage}
@@ -108,7 +114,7 @@ export function DataTable<T extends { id?: number }>({
                         : String(row[col.accessor] || '-')}
                     </TableCell>
                   ))}
-                  {(onEdit || onDelete) && (
+                  {(onEdit || onDelete || onCustomAction) && (
                     <TableCell>
                       <div className="flex gap-2">
                         {onEdit && (
@@ -119,6 +125,16 @@ export function DataTable<T extends { id?: number }>({
                             title="Editar"
                           >
                             <Edit2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {onCustomAction && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onCustomAction(row)}
+                            title={customActionLabel || 'Acción'}
+                          >
+                            {customActionIcon || <Edit2 className="w-4 h-4" />}
                           </Button>
                         )}
                         {onDelete && (

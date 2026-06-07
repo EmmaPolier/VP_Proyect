@@ -34,7 +34,7 @@ interface CRUDModalProps {
   fields: Array<{
     name: string;
     label: string;
-    type?: 'text' | 'number' | 'email' | 'textarea' | 'select';
+    type?: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox';
     required?: boolean;
     placeholder?: string;
   }>;
@@ -132,10 +132,12 @@ export function CRUDModal({
 
             return (
               <div key={field.name} className="space-y-2">
-                <Label htmlFor={field.name}>
-                  {field.label}
-                  {field.required && <span className="text-red-500 ml-1">*</span>}
-                </Label>
+                {field.type !== 'checkbox' && (
+                  <Label htmlFor={field.name}>
+                    {field.label}
+                    {field.required && <span className="text-red-500 ml-1">*</span>}
+                  </Label>
+                )}
 
                 {field.type === 'select' ? (
                   <select
@@ -176,6 +178,7 @@ export function CRUDModal({
                     />
                     <label htmlFor={field.name} className="text-sm font-medium cursor-pointer">
                       {field.label}
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
                     </label>
                   </div>
                 ) : field.type === 'textarea' ? (

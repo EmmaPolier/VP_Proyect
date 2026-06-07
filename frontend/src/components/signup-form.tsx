@@ -33,6 +33,7 @@ export function SignupForm({
   const [formData, setFormData] = useState({
     name: "",
     lastname: "",
+    secondLastname: "",
     document: "",
     email: "",
     phone: "",
@@ -64,9 +65,14 @@ export function SignupForm({
       return "El nombre es requerido"
     }
 
-    // Validar apellido
+    // Validar primer apellido
     if (!formData.lastname.trim()) {
-      return "El apellido es requerido"
+      return "El primer apellido es requerido"
+    }
+
+    // Validar segundo apellido
+    if (!formData.secondLastname.trim()) {
+      return "El segundo apellido es requerido"
     }
 
     // Validar documento
@@ -81,6 +87,21 @@ export function SignupForm({
 
     if (docNumbers.length > 11) {
       return "El documento no puede tener más de 11 dígitos"
+    }
+
+    // Validar fecha de nacimiento
+    if (!formData.birthDate.trim()) {
+      return "La fecha de nacimiento es requerida"
+    }
+
+    // Validar que sea mayor de 18 años
+    const birthDate = new Date(formData.birthDate)
+    const today = new Date()
+    const age = today.getFullYear() - birthDate.getFullYear()
+    const monthDiff = today.getMonth() - birthDate.getMonth()
+
+    if (age < 18 || (age === 18 && monthDiff < 0) || (age === 18 && monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      return "Debes ser mayor de 18 años para registrarte"
     }
 
     // Validar email
@@ -145,7 +166,7 @@ export function SignupForm({
         documento: formData.document,
         nombres: formData.name,
         primerApellido: formData.lastname,
-        segundoApellido: "",
+        segundoApellido: formData.secondLastname,
         email: formData.email,
         telefono: formData.phone || "",
         fechaNacimiento: formData.birthDate || null,
@@ -233,12 +254,24 @@ export function SignupForm({
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="lastname">Apellido</FieldLabel>
+                <FieldLabel htmlFor="lastname">Primer Apellido</FieldLabel>
                 <Input
                   id="lastname"
                   type="text"
                   placeholder="García"
                   value={formData.lastname}
+                  onChange={handleInputChange}
+                  disabled={isLoading}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="secondLastname">Segundo Apellido</FieldLabel>
+                <Input
+                  id="secondLastname"
+                  type="text"
+                  placeholder="López"
+                  value={formData.secondLastname}
                   onChange={handleInputChange}
                   disabled={isLoading}
                   required
@@ -257,13 +290,14 @@ export function SignupForm({
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="birthDate">Fecha de nacimiento (Opcional)</FieldLabel>
+                <FieldLabel htmlFor="birthDate">Fecha de nacimiento</FieldLabel>
                 <Input
                   id="birthDate"
                   type="date"
                   value={formData.birthDate}
                   onChange={handleInputChange}
                   disabled={isLoading}
+                  required
                 />
               </Field>
               <Field>

@@ -359,33 +359,13 @@ export async function updateUsuario(req, res) {
       );
     }
 
-    if (typeof idPerfil !== 'undefined') {
-      const profileUpdate = await connection.execute(
-        `UPDATE USUARIO_PERFIL SET ID_PER_UPE = :idPerfil WHERE DOCUMENTO_USU_UPE = :documento`,
-        { idPerfil, documento }
-      );
+    // NOTA: Los perfiles NO se actualizan desde aquí
+    // Los perfiles deben manejarse por separado en un endpoint específico
+    // Esto previene conflictos cuando un usuario tiene múltiples perfiles
 
-      if (profileUpdate.rowsAffected === 0) {
-        await connection.execute(
-          `INSERT INTO USUARIO_PERFIL (
-             ID_UPE,
-             DOCUMENTO_USU_UPE,
-             ID_PER_UPE,
-             CALIFICACION_UPE,
-             FECHA_ASIGNACION_UPE
-           ) VALUES (
-             SEQ_USUARIO_PERFIL.NEXTVAL,
-             :documento,
-             :idPerfil,
-             5.0,
-             SYSDATE
-           )`,
-          { documento, idPerfil }
-        );
-      }
-    }
+    await connection.commit();
 
-    successResponse(res, { documento, email, nombres, primerApellido, idEstado, idPerfil }, 'Usuario actualizado exitosamente');
+    successResponse(res, { documento, email, nombres, primerApellido, segundoApellido, idEstado }, 'Usuario actualizado exitosamente');
   } catch (error) {
     errorResponse(res, error, 'Error al actualizar usuario', 500);
   } finally {
@@ -395,6 +375,7 @@ export async function updateUsuario(req, res) {
 
 export async function deleteUsuario(req, res) {
   const { documento } = req.params;
+  const { idPerfil } = req.query; // Parámetro opcional para eliminar solo un perfil específico
 
   let connection;
   try {
@@ -409,6 +390,79 @@ export async function deleteUsuario(req, res) {
       return errorResponse(res, null, 'Usuario no encontrado', 404);
     }
 
+    // Si se especifica un perfil, eliminar solo ese perfil
+    if (idPerfil) {
+      const perfilCheck = await connection.execute(
+        `SELECT ID_UPE FROM USUARIO_PERFIL 
+         WHERE DOCUMENTO_USU_UPE = :documento AND ID_PER_UPE = :idPerfil`,
+        { documento, idPerfil }
+      );
+
+      if (perfilCheck.rows.length === 0) {
+        return errorResponse(res, null, 'Este usuario no tiene ese perfil', 404);
+      }
+
+      const uperIdToDelete = perfilCheck.rows[0][0];
+
+      // Eliminar datos asociados a este perfil específico
+      // 1. Eliminar CALIFICACION que dependen de CUPO_RUTA
+      await connection.execute(
+        `DELETE FROM CALIFICACION 
+         WHERE (SOL_ID_CAL, RUT_ID_CAL) IN (
+           SELECT ID_SOL_CRU, ID_RUT_CRU FROM CUPO_RUTA 
+           WHERE ID_SOL_CRU IN (
+             SELECT ID_SOL FROM SOLICITUD_CUPO WHERE ID_UPE_SOL = :uperIdToDelete
+           )
+         )`,
+        { uperIdToDelete }
+      );
+
+      // 2. Eliminar HISTORIAL_VIAJE que dependen de CUPO_RUTA
+      await connection.execute(
+        `DELETE FROM HISTORIAL_VIAJE 
+         WHERE (SOL_ID_HIS, RUT_ID_HIS) IN (
+           SELECT ID_SOL_CRU, ID_RUT_CRU FROM CUPO_RUTA 
+           WHERE ID_SOL_CRU IN (
+             SELECT ID_SOL FROM SOLICITUD_CUPO WHERE ID_UPE_SOL = :uperIdToDelete
+           )
+         )`,
+        { uperIdToDelete }
+      );
+
+      // 3. Eliminar CUPO_RUTA que dependen de SOLICITUD_CUPO
+      await connection.execute(
+        `DELETE FROM CUPO_RUTA 
+         WHERE ID_SOL_CRU IN (
+           SELECT ID_SOL FROM SOLICITUD_CUPO WHERE ID_UPE_SOL = :uperIdToDelete
+         )`,
+        { uperIdToDelete }
+      );
+
+      // 4. Eliminar SOLICITUD_CUPO que dependen de USUARIO_PERFIL
+      await connection.execute(
+        `DELETE FROM SOLICITUD_CUPO WHERE ID_UPE_SOL = :uperIdToDelete`,
+        { uperIdToDelete }
+      );
+
+      // 5. Eliminar RUTA que dependen de USUARIO_PERFIL (como conductor)
+      await connection.execute(
+        `DELETE FROM RUTA WHERE ID_UPE_RUT = :uperIdToDelete`,
+        { uperIdToDelete }
+      );
+
+      // 6. Eliminar solo este USUARIO_PERFIL
+      await connection.execute(
+        `DELETE FROM USUARIO_PERFIL 
+         WHERE DOCUMENTO_USU_UPE = :documento AND ID_PER_UPE = :idPerfil`,
+        { documento, idPerfil }
+      );
+
+      await connection.commit();
+
+      return successResponse(res, { documento, idPerfil }, `Perfil ${idPerfil} del usuario eliminado exitosamente`);
+    }
+
+    // Si NO se especifica perfil, eliminar todo el usuario (comportamiento original)
     // Obtener IDs de USUARIO_PERFIL para este usuario
     const usuarioPerfil = await connection.execute(
       'SELECT ID_UPE FROM USUARIO_PERFIL WHERE DOCUMENTO_USU_UPE = :documento',
@@ -494,9 +548,88 @@ export async function deleteUsuario(req, res) {
       { documento }
     );
 
+    await connection.commit();
+
     successResponse(res, { documento }, 'Usuario eliminado exitosamente');
   } catch (error) {
     errorResponse(res, error, 'Error al eliminar usuario', 500);
+  } finally {
+    if (connection) await connection?.close();
+  }
+}
+
+/**
+ * Agregar un nuevo perfil a un usuario existente
+ * POST /api/admin/usuarios/:documento/perfiles
+ */
+export async function addPerfilToUsuario(req, res) {
+  const { documento } = req.params;
+  const { idPerfil } = req.body;
+
+  let connection;
+  try {
+    connection = await getConnection();
+
+    // Validar que el usuario existe
+    const userCheck = await connection.execute(
+      'SELECT COUNT(*) as count FROM USUARIO WHERE DOCUMENTO_USU = :documento',
+      { documento }
+    );
+
+    if (userCheck.rows[0][0] === 0) {
+      return errorResponse(res, null, 'Usuario no encontrado', 404);
+    }
+
+    // Validar que el perfil existe
+    const perfilCheck = await connection.execute(
+      'SELECT COUNT(*) as count FROM PERFIL WHERE ID_PER = :idPerfil',
+      { idPerfil }
+    );
+
+    if (perfilCheck.rows[0][0] === 0) {
+      return errorResponse(res, null, 'Perfil no encontrado', 404);
+    }
+
+    // Validar que el usuario no tenga ya este perfil
+    const existingCheck = await connection.execute(
+      `SELECT COUNT(*) as count FROM USUARIO_PERFIL 
+       WHERE DOCUMENTO_USU_UPE = :documento AND ID_PER_UPE = :idPerfil`,
+      { documento, idPerfil }
+    );
+
+    if (existingCheck.rows[0][0] > 0) {
+      return errorResponse(res, null, 'Este usuario ya tiene asignado este perfil', 409);
+    }
+
+    // Obtener el siguiente ID de secuencia
+    const seqResult = await connection.execute(
+      'SELECT SEQ_USUARIO_PERFIL.NEXTVAL FROM DUAL'
+    );
+    const nextId = seqResult.rows[0][0];
+
+    // Insertar el nuevo perfil para el usuario
+    await connection.execute(
+      `INSERT INTO USUARIO_PERFIL (
+         ID_UPE,
+         DOCUMENTO_USU_UPE,
+         ID_PER_UPE,
+         CALIFICACION_UPE,
+         FECHA_ASIGNACION_UPE
+       ) VALUES (
+         :idUpe,
+         :documento,
+         :idPerfil,
+         5.0,
+         SYSDATE
+       )`,
+      { idUpe: nextId, documento, idPerfil }
+    );
+
+    await connection.commit();
+
+    successResponse(res, { documento, idPerfil, idUpe: nextId }, 'Perfil agregado exitosamente al usuario');
+  } catch (error) {
+    errorResponse(res, error, 'Error al agregar perfil al usuario', 500);
   } finally {
     if (connection) await connection?.close();
   }

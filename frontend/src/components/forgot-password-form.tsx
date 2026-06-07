@@ -60,7 +60,10 @@ export function ForgotPasswordForm({
       setSuccess(true)
       setEmail("")
       
-      // Mostrar mensaje de éxito durante 5 segundos
+      // Limpiar pendingVerification para evitar que muestre el modal OTP
+      localStorage.removeItem("pendingVerification")
+      
+      // Mostrar mensaje de éxito durante 3 segundos
       setTimeout(() => {
         router.push("/auth")
       }, 3000)

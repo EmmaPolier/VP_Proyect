@@ -163,7 +163,7 @@ export async function createPermiso(req, res) {
 
     // Verificar que el perfil existe
     const perfilExists = await connection.execute(
-      `SELECT COUNT(*) as count FROM PERFIL WHERE ID_PERFIL = :idPerfil`,
+      `SELECT COUNT(*) as count FROM PERFIL WHERE ID_PER = :idPerfil`,
       { idPerfil }
     );
 
@@ -252,7 +252,7 @@ export async function updatePermiso(req, res) {
     if (newIdPerfil && Number(newIdPerfil) !== Number(idPerfil)) {
       // Verificar que el nuevo perfil existe
       const perfilExists = await connection.execute(
-        `SELECT COUNT(*) as count FROM PERFIL WHERE ID_PERFIL = :newIdPerfil`,
+        `SELECT COUNT(*) as count FROM PERFIL WHERE ID_PER = :newIdPerfil`,
         { newIdPerfil }
       );
 
