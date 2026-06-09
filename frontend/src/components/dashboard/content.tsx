@@ -27,6 +27,7 @@ import { DriverTravelHistory } from "./driver/driver-travel-history"
 import { DriverWallet } from "./driver/driver-wallet"
 import { DriverProfile } from "./driver/driver-profile"
 import { DriverSettings } from "./driver/driver-settings"
+import { PassengerSettings } from "./passenger/passenger-settings"
 
 interface DashboardContentProps {
   userType?: "passenger" | "driver" | "admin"
@@ -1111,14 +1112,7 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
 
           {/* Configuración Tab */}
           <TabsContent value="configuracion" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Configuración del Sistema</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Opciones de configuración en construcción</p>
-              </CardContent>
-            </Card>
+            <PassengerSettings />
           </TabsContent>
         </Tabs>
       </div>

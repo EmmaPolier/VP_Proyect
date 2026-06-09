@@ -162,7 +162,8 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
       if (normalized.includes('/search') || normalized.includes('buscar')) return 'buscar'
       if (normalized.includes('/my-trips') || normalized.includes('viajes') || normalized.includes('mis-viajes')) return 'viajes'
       if (normalized.includes('/wallet') || normalized.includes('cartera')) return 'cartera'
-      if (normalized.includes('/profile') || normalized.includes('perfil') || normalized.includes('/settings')) return 'perfil'
+      if (normalized.includes('/profile') || normalized.includes('perfil')) return 'perfil'
+      if (normalized.includes('/settings') || normalized.includes('configuracion')) return 'configuracion'
       if (normalized.includes('/carrera') || normalized.includes('resumen')) return 'carrera'
       // Peticiones/solicitudes del pasajero
       if (normalized.includes('/requests') || normalized.includes('solicitudes')) return 'viajes'

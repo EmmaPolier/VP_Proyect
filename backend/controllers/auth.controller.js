@@ -958,12 +958,35 @@ export async function deleteAccount(req, res) {
       
       console.log('[DELETE-ACCOUNT] Perfiles a eliminar:', userPerfils);
 
-      // ========== PASO 2: ESTRATEGIA NUCLEAR - Eliminar CUPO_RUTA del perfil ==========
-      console.log('[DELETE-ACCOUNT] Paso 2: ESTRATEGIA NUCLEAR - Eliminar CUPO_RUTA...');
+      // ========== PASO 2: Eliminar HISTORIAL_VIAJE PRIMERO (FK referencia CUPO_RUTA) ==========
+      if (deleteEntireUser) {
+        console.log('[DELETE-ACCOUNT] Paso 2: Eliminando HISTORIAL_VIAJE...');
+        await connection.execute(
+          `DELETE FROM HISTORIAL_VIAJE 
+           WHERE DOCUMENTO_USU_HIS = :documento`,
+          { documento }
+        );
+        console.log('[DELETE-ACCOUNT] HISTORIAL_VIAJE eliminados');
+      }
+
+      // ========== PASO 3: Eliminar CALIFICACION (solo si usuario completo) ==========
+      if (deleteEntireUser) {
+        console.log('[DELETE-ACCOUNT] Paso 3: Eliminando CALIFICACION...');
+        await connection.execute(
+          `DELETE FROM CALIFICACION 
+           WHERE DOCUMENTO_CALIFICADOR_CAL = :documento 
+           OR DOCUMENTO_CALIFICADO_CAL = :documento`,
+          { documento }
+        );
+        console.log('[DELETE-ACCOUNT] CALIFICACION eliminadas');
+      }
+
+      // ========== PASO 4: ESTRATEGIA NUCLEAR - Eliminar CUPO_RUTA del perfil ==========
+      console.log('[DELETE-ACCOUNT] Paso 4: Eliminando CUPO_RUTA...');
       
       if (userPerfils.length > 0) {
         // PRIMERO: Eliminar CUPO_RUTA por SOLICITUD_CUPO del perfil
-        console.log('[DELETE-ACCOUNT] 2.1: Eliminando CUPO_RUTA por solicitudes del perfil...');
+        console.log('[DELETE-ACCOUNT] 4.1: Eliminando CUPO_RUTA por solicitudes del perfil...');
         await connection.execute(
           `DELETE FROM CUPO_RUTA 
            WHERE ID_SOL_CRU IN (
@@ -974,7 +997,7 @@ export async function deleteAccount(req, res) {
         );
 
         // SEGUNDO: Eliminar CUPO_RUTA por RUTA del perfil
-        console.log('[DELETE-ACCOUNT] 2.2: Eliminando CUPO_RUTA por rutas del perfil...');
+        console.log('[DELETE-ACCOUNT] 4.2: Eliminando CUPO_RUTA por rutas del perfil...');
         await connection.execute(
           `DELETE FROM CUPO_RUTA 
            WHERE ID_RUT_CRU IN (
@@ -985,7 +1008,7 @@ export async function deleteAccount(req, res) {
         );
 
         // TERCERO: Eliminar CUPO_RUTA por SOLICITUD_CUPO en rutas del perfil
-        console.log('[DELETE-ACCOUNT] 2.3: Eliminando CUPO_RUTA por solicitudes en rutas del perfil...');
+        console.log('[DELETE-ACCOUNT] 4.3: Eliminando CUPO_RUTA por solicitudes en rutas del perfil...');
         await connection.execute(
           `DELETE FROM CUPO_RUTA 
            WHERE ID_SOL_CRU IN (
@@ -1000,9 +1023,9 @@ export async function deleteAccount(req, res) {
       }
       console.log('[DELETE-ACCOUNT] CUPO_RUTA eliminados');
 
-      // ========== PASO 3: Eliminar PUNTO_ENCUENTRO (solo del perfil eliminado) ==========
+      // ========== PASO 5: Eliminar PUNTO_ENCUENTRO (solo del perfil eliminado) ==========
       if (userPerfils.length > 0) {
-        console.log('[DELETE-ACCOUNT] Paso 3: Eliminando PUNTO_ENCUENTRO...');
+        console.log('[DELETE-ACCOUNT] Paso 5: Eliminando PUNTO_ENCUENTRO...');
         await connection.execute(
           `DELETE FROM PUNTO_ENCUENTRO 
            WHERE ID_RUT_PEN IN (
@@ -1012,29 +1035,6 @@ export async function deleteAccount(req, res) {
           userPerfils.reduce((obj, val, i) => ({ ...obj, [`upid${i}`]: val }), {})
         );
         console.log('[DELETE-ACCOUNT] PUNTO_ENCUENTRO eliminados');
-      }
-
-      // ========== PASO 4: Eliminar CALIFICACION (solo si usuario completo) ==========
-      if (deleteEntireUser) {
-        console.log('[DELETE-ACCOUNT] Paso 4: Eliminando CALIFICACION...');
-        await connection.execute(
-          `DELETE FROM CALIFICACION 
-           WHERE DOCUMENTO_CALIFICADOR_CAL = :documento 
-           OR DOCUMENTO_CALIFICADO_CAL = :documento`,
-          { documento }
-        );
-        console.log('[DELETE-ACCOUNT] CALIFICACION eliminadas');
-      }
-
-      // ========== PASO 5: Eliminar HISTORIAL_VIAJE (solo si usuario completo) ==========
-      if (deleteEntireUser) {
-        console.log('[DELETE-ACCOUNT] Paso 5: Eliminando HISTORIAL_VIAJE...');
-        await connection.execute(
-          `DELETE FROM HISTORIAL_VIAJE 
-           WHERE DOCUMENTO_USU_HIS = :documento`,
-          { documento }
-        );
-        console.log('[DELETE-ACCOUNT] HISTORIAL_VIAJE eliminados');
       }
 
       // ========== PASO 6: Eliminar SOLICITUD_CUPO (del perfil eliminado) ==========
