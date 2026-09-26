@@ -30,9 +30,9 @@ Cada área tiene un solo responsable de escritura. Los demás contribuyen median
 
 **Objetivo:** Dejar una interfaz estable de datos/API para que backend, frontend y base de datos se implementen en paralelo sin retrabajo.
 
-- **Desarrollador 1:** Define contratos HTTP, autorización y modelo de estados. Especifica que la identidad del usuario se obtiene del JWT y que el servidor valida la participación en la ruta. Documenta respuestas y errores esperados.
+- **Desarrollador 1:** ~~Define contratos HTTP, autorización y modelo de estados. Especifica que la identidad del usuario se obtiene del JWT y que el servidor valida la participación en la ruta. Documenta respuestas y errores esperados (contrato documentado en `CONTRATO_API_FASE_1_EMERGENCIAS_FAVORITOS.md`).~~
 - **Desarrollador 2:** Define los estados de pantalla, formularios y datos mínimos requeridos para cada vista. Prepara tipos TypeScript a partir de los contratos aprobados; todavía puede trabajar con fixtures locales.
-- **Desarrollador 3:** Revisa claves y relaciones Oracle actuales (`USUARIO`, `USUARIO_PERFIL`, `RUTA`, `SOLICITUD_CUPO`, `HISTORIAL_VIAJE`, `ESTADO_RUTA`) y diseña las migraciones incrementales, restricciones y secuencias.
+- **Desarrollador 3:** ~~Revisa claves y relaciones Oracle actuales (`USUARIO`, `USUARIO_PERFIL`, `RUTA`, `SOLICITUD_CUPO`, `HISTORIAL_VIAJE`, `ESTADO_RUTA`) y prepara las migraciones incrementales, restricciones e índices de contactos y favoritos.~~
 - **Entregables compartidos:** Contrato API aprobado, diccionario de columnas, propietario de cada script y lista de casos de autorización/privacidad.
 - **Criterio de salida:** El equipo confirma que los identificadores de conductor serán `ID_UPE`, que la identidad del usuario será su documento autenticado y que las rutas solo generan alertas cuando están `EN_CURSO`.
 
@@ -42,7 +42,7 @@ Cada área tiene un solo responsable de escritura. Los demás contribuyen median
 
 - **Desarrollador 1, backend:** Implementa `contacto-emergencia.controller.js` y `contacto-emergencia.routes.js`: listar, crear, editar, activar/desactivar y eliminar. Restringe cada operación al propietario obtenido del JWT.
 - **Desarrollador 2, frontend:** Implementa la sección de contactos en configuración/perfil: alta, edición, baja, activación, validación visible y estados de carga, vacío y error.
-- **Desarrollador 3, base de datos:** Añade `CONTACTO_EMERGENCIA` con `ID_CEM`, `DOCUMENTO_USU_CEM`, `NOMBRE_CEM`, `CORREO_CEM`, `TELEFONO_CEM`, `RELACION_CEM`, `ACTIVO_CEM`, `FECHA_CREACION_CEM`, `FECHA_ACTUALIZACION_CEM`; crea secuencia, FK a `USUARIO`, índices y restricción apropiada para evitar duplicados activos.
+- **Desarrollador 3, base de datos:** ~~Prepara los scripts para crear `CONTACTO_EMERGENCIA` con `ID_CEM`, `DOCUMENTO_USU_CEM`, `NOMBRE_CEM`, `RELACION_CEM`, `CORREO_CEM` y `FECHA_CREACION_CEM`, además de su secuencia, FK a `USUARIO`, unicidad de correo por usuario e índice de consulta.~~
 - **Endpoints:** `GET/POST /api/usuario/contactos-emergencia`, `PATCH /api/usuario/contactos-emergencia/:id`, `DELETE /api/usuario/contactos-emergencia/:id`.
 - **Validaciones y pruebas:** Email normalizado y validado, longitudes limitadas, duplicados y máximo de contactos activos controlados. Verificar aislamiento entre usuarios y probar CRUD, autorización y errores de validación.
 - **Criterio de salida:** El usuario autenticado puede mantener contactos y nunca leer o cambiar contactos de otra cuenta. Migración y pruebas de API/UI pasan en integración.
@@ -64,7 +64,7 @@ Cada área tiene un solo responsable de escritura. Los demás contribuyen median
 
 - **Desarrollador 1, backend/revisión:** Revisa autorización, formato de respuesta y consistencia de errores; confirma que el documento autenticado determina el propietario y que las operaciones no aceptan un propietario arbitrario del cliente.
 - **Desarrollador 2, frontend:** Agrega acción de marcar/quitar favorito en vistas de conductores y una sección de lista con estados vacío, carga y error. Evita solicitudes repetidas mientras una acción está pendiente.
-- **Desarrollador 3, datos y backend:** Añade `FAVORITO_CONDUCTOR` con `ID_FCO`, `DOCUMENTO_USU_FCO`, `ID_UPE_CONDUCTOR_FCO`, `FECHA_CREACION_FCO`; secuencia, FKs, unicidad usuario-conductor e índices. Implementa `favorito-conductor.controller.js` y rutas CRUD/listado.
+- **Desarrollador 3, datos y backend:** ~~Prepara los scripts para crear `FAVORITO_CONDUCTOR` con `ID_FCO`, `DOCUMENTO_USU_FCO`, `ID_UPE_CONDUCTOR_FCO`, `FECHA_CREACION_FCO`, secuencia, FKs, unicidad usuario-conductor e índice por conductor.~~ Implementa `favorito-conductor.controller.js` y rutas CRUD/listado.
 - **Endpoints:** `GET /api/usuario/conductores-favoritos`, `POST /api/usuario/conductores-favoritos/:idUpe`, `DELETE /api/usuario/conductores-favoritos/:idUpe`.
 - **Validaciones y pruebas:** El objetivo debe ser un perfil `CONDUCTOR`, no el usuario actual; rechazar identificadores inexistentes y perfiles de otro tipo. Probar idempotencia, aislamiento y lista tras recarga.
 - **Criterio de salida:** La relación usuario-conductor es única en Oracle; agregar o quitar un favorito no afecta a otros usuarios y la lista muestra solo información pública autorizada.
