@@ -2,8 +2,11 @@ import express from 'express';
 import { authMiddleware } from '../middlewares/auth.middleware.js';
 import { deleteAccount } from '../controllers/auth.controller.js';
 import { getUserVehicles, getUserTravelHistory, createUserVehicle, deleteUserVehicle } from '../controllers/usuario.controller.js';
+import contactoEmergenciaRoutes from './contacto-emergencia.routes.js';
 
 const router = express.Router();
+
+router.use('/contactos-emergencia', contactoEmergenciaRoutes);
 
 // Obtener vehículos del usuario
 router.get('/vehiculos', authMiddleware, getUserVehicles);
