@@ -45,6 +45,7 @@ export const API_ENDPOINTS = {
   WALLET_RECARGA: `${API_BASE_URL}/api/cartera/recarga`,
 
   // Usuario
+  EMERGENCY_CONTACTS: `${API_BASE_URL}/api/usuario/contactos-emergencia`,
   DELETE_ACCOUNT: `${API_BASE_URL}/users/delete-account`,
   GET_USER_VEHICLES: `${API_BASE_URL}/vehicles`,
   CREATE_USER_VEHICLE: `${API_BASE_URL}/vehicles`,

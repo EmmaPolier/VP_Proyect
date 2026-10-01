@@ -69,7 +69,7 @@ export function VehicleRegistrationForm({
 
   // Cargar datos iniciales
   useEffect(() => {
-    const pending = localStorage.getItem("pendingVerification")
+    const pending = localStorage.getItem("vehicleRegistrationContext") || localStorage.getItem("pendingVerification")
     if (!pending) {
       setError("No se encontró información de conductor. Regístrate primero.")
       setIsLoadingData(false)
@@ -96,8 +96,8 @@ export function VehicleRegistrationForm({
   const loadCatalogData = async () => {
     try {
       const [brandsRes, colorsRes] = await Promise.all([
-        apiClient.get(`${API_URL}/vehicles/brands`),
-        apiClient.get(`${API_URL}/vehicles/colors`)
+        apiClient.get<{ brands: Brand[] }>(`${API_URL}/vehicles/brands`),
+        apiClient.get<{ colors: Color[] }>(`${API_URL}/vehicles/colors`)
       ])
 
       setBrands(brandsRes.data?.brands || [])
@@ -125,7 +125,7 @@ export function VehicleRegistrationForm({
     }
 
     try {
-      const response = await apiClient.get(`${API_URL}/vehicles/models`, { brandId: parseInt(brandId) })
+      const response = await apiClient.get<{ models: Model[] }>(`${API_URL}/vehicles/models`, { brandId: parseInt(brandId) })
       setModels(response.data?.models || [])
     } catch (err: any) {
       console.error("Error cargando modelos:", err)
@@ -179,7 +179,9 @@ export function VehicleRegistrationForm({
         fotoUrl: formData.fotoUrl || null,
       })
 
-      router.push("/auth")
+      localStorage.removeItem("vehicleRegistrationContext")
+      localStorage.removeItem("pendingVerification")
+      router.push("/login")
     } catch (err: any) {
       console.error("Error en registro:", err)
       if (err instanceof Error && err.message) {
@@ -317,7 +319,7 @@ export function VehicleRegistrationForm({
                       value={formData.plate}
                       onChange={handleInputChange}
                       disabled={isLoading}
-                      maxLength="6"
+                      maxLength={6}
                       required
                     />
                     <FieldDescription>

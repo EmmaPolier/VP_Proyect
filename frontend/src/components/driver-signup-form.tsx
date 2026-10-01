@@ -100,7 +100,7 @@ export function DriverSignupForm({
           })
         )
 
-        router.push("/signup/driver/vehicle")
+        router.push("/auth")
       }
     } catch (error: any) {
       console.error("Error en registro:", error)

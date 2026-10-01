@@ -40,12 +40,14 @@ Cada área tiene un solo responsable de escritura. Los demás contribuyen median
 
 **Objetivo:** Permitir que una persona autenticada gestione sus contactos antes de habilitar el botón de emergencia.
 
-- **Desarrollador 1, backend:** Implementa `contacto-emergencia.controller.js` y `contacto-emergencia.routes.js`: listar, crear, editar, activar/desactivar y eliminar. Restringe cada operación al propietario obtenido del JWT.
-- **Desarrollador 2, frontend:** Implementa la sección de contactos en configuración/perfil: alta, edición, baja, activación, validación visible y estados de carga, vacío y error.
-- **Desarrollador 3, base de datos:** ~~Prepara los scripts para crear `CONTACTO_EMERGENCIA` con `ID_CEM`, `DOCUMENTO_USU_CEM`, `NOMBRE_CEM`, `RELACION_CEM`, `CORREO_CEM` y `FECHA_CREACION_CEM`, además de su secuencia, FK a `USUARIO`, unicidad de correo por usuario e índice de consulta.~~
-- **Endpoints:** `GET/POST /api/usuario/contactos-emergencia`, `PATCH /api/usuario/contactos-emergencia/:id`, `DELETE /api/usuario/contactos-emergencia/:id`.
-- **Validaciones y pruebas:** Email normalizado y validado, longitudes limitadas, duplicados y máximo de contactos activos controlados. Verificar aislamiento entre usuarios y probar CRUD, autorización y errores de validación.
-- **Criterio de salida:** El usuario autenticado puede mantener contactos y nunca leer o cambiar contactos de otra cuenta. Migración y pruebas de API/UI pasan en integración.
+- **Desarrollador 1, backend:** ~~Implementa `contacto-emergencia.controller.js` y `contacto-emergencia.routes.js`: listar, crear, editar, activar/desactivar y eliminar. Restringe cada operación al propietario obtenido del JWT.~~
+- **Desarrollador 2, frontend:** ~~Implementa la sección reutilizable de contactos en configuración de pasajero y conductor: alta, edición, baja, activación, validación visible y estados de carga, vacío y error.~~
+- **Desarrollador 3, base de datos:** ~~Prepara los scripts para crear `CONTACTO_EMERGENCIA` con `ID_CEM`, `DOCUMENTO_USU_CEM`, `NOMBRE_CEM`, `RELACION_CEM`, `CORREO_CEM` y `FECHA_CREACION_CEM`, además de su secuencia, FK a `USUARIO`, unicidad de correo por usuario e índice de consulta. Agrega `ACTIVO_CEM` mediante una migración incremental, con default `'S'` para los registros existentes y restricción para aceptar solo `'S'`/`'N'`. La migración 12 fue ejecutada y la columna fue verificada en Oracle.~~
+- **Endpoints:** ~~`GET/POST /api/usuario/contactos-emergencia`, `PATCH /api/usuario/contactos-emergencia/:id` (incluye `activo: true|false`) y `DELETE /api/usuario/contactos-emergencia/:id`.~~
+- **Contrato y reglas implementadas:** ~~Email normalizado y validado, longitudes limitadas, correo único por propietario incluso en contactos inactivos y máximo de cinco contactos activos. Crear siempre activos; al reactivar, rechazar si se excede el límite. Contrato actualizado para que los destinatarios de emergencia sean solo los contactos activos.~~
+- **Validación local completada:** ~~Lint y typecheck focalizados en los módulos modificados, diagnósticos de los archivos tocados y comprobaciones de validación del backend.~~
+- **Pendiente para cerrar fase:** Probar en integración el flujo UI/API con backend y Oracle activos; verificar CRUD, aislamiento entre dos usuarios, activación/reactivación y límite de cinco contactos activos. El typecheck global del frontend también requiere corregir el error de sintaxis preexistente en `frontend/src/components/app-sidebar.tsx`.
+- **Criterio de salida:** Implementación de backend y UI disponible; fase pendiente de cierre hasta que pasen las pruebas de API/UI en integración y se verifique que un usuario no puede leer o cambiar contactos ajenos.
 
 ## Fase 3: Botón y registro de emergencia
 

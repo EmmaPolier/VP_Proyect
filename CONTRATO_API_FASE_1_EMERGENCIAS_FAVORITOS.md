@@ -71,8 +71,9 @@ Campos técnicos propuestos para `CONTACTO_EMERGENCIA`:
 | `RELACION_CEM` | `VARCHAR2(50 BYTE)` | Obligatorio, trim, no vacío. |
 | `CORREO_CEM` | `VARCHAR2(150 BYTE)` | Obligatorio, normalizado a minúscula y validado. |
 | `FECHA_CREACION_CEM` | `DATE DEFAULT SYSDATE` | Auditoría técnica; no editable desde cliente. |
+| `ACTIVO_CEM` | `CHAR(1 BYTE) DEFAULT 'S'` | `'S'` activo, `'N'` inactivo. Los contactos existentes se migran como activos. |
 
-Índices/restricciones: PK en `ID_CEM`, FK al propietario, unicidad de correo normalizado por propietario y un índice para listar por `DOCUMENTO_USU_CEM`. Máximo de **5 contactos por usuario** en la primera versión; el límite debe quedar como constante de negocio configurable. No se incluye teléfono ni bandera de activo: los contactos se eliminan físicamente y todos los registros presentes son destinatarios.
+Índices/restricciones: PK en `ID_CEM`, FK al propietario, unicidad de correo normalizado por propietario, check de `ACTIVO_CEM IN ('S', 'N')` y un índice para listar por `DOCUMENTO_USU_CEM`. La migración incremental `scripts/12script_Activar_Contactos_Emergencia.sql` agrega el estado sin borrar datos; las filas existentes quedan activas. Máximo de **5 contactos activos por usuario**; el límite debe quedar como constante configurable y contar solo registros con `ACTIVO_CEM = 'S'`. Los contactos inactivos se conservan, no reciben alertas y no ocupan cupo activo. El correo continúa siendo único por usuario incluso en contactos inactivos; eliminar físicamente el contacto libera el correo para reutilizarlo por ese mismo usuario. No se incluye teléfono.
 
 ### Endpoints
 
@@ -91,7 +92,8 @@ Respuesta `200`:
       "id": 41,
       "nombre": "Ana Pérez",
       "relacion": "Hermana",
-      "correo": "ana@example.com"
+      "correo": "ana@example.com",
+      "activo": true
     }
   ],
   "timestamp": "2026-09-26T14:30:00.000Z"
@@ -112,11 +114,13 @@ Body:
 }
 ```
 
-Respuesta `201`: `data` contiene el contacto creado con `id`, `nombre`, `relacion` y `correo`.
+El backend asigna `activo: true`; el cliente no puede elegir estado al crear.
+
+Respuesta `201`: `data` contiene el contacto creado con `id`, `nombre`, `relacion`, `correo` y `activo`.
 
 #### `PATCH /api/usuario/contactos-emergencia/:id`
 
-Actualiza nombre, relación o correo del contacto que pertenezca al usuario autenticado. Acepta uno o más campos permitidos; rechaza body vacío y campos desconocidos.
+Actualiza nombre, relación, correo o estado del contacto que pertenezca al usuario autenticado. Acepta uno o más campos permitidos; rechaza body vacío y campos desconocidos. Para activar/desactivar se envía `{"activo": true}` o `{"activo": false}`. La reactivación devuelve `409` si el propietario ya tiene cinco contactos activos. Activar un contacto no cambia su correo; el correo permanece reservado mientras exista el registro, incluso si está inactivo.
 
 #### `DELETE /api/usuario/contactos-emergencia/:id`
 
@@ -128,7 +132,9 @@ Elimina físicamente el contacto si pertenece al usuario autenticado. Respuesta 
 - `relacion`: requerido, entre 1 y 50 caracteres tras trim.
 - `correo`: requerido, máximo 150 caracteres, validación de formato, trim y lowercase antes de guardar.
 - No permitir correo duplicado para el mismo usuario, comparando normalizado.
-- Rechazar más de cinco contactos asociados al usuario.
+- Crear contactos siempre activos y rechazar la creación si el usuario ya tiene cinco activos.
+- `activo` solo se acepta en `PATCH` y debe ser booleano; rechazar la reactivación que supere cinco contactos activos.
+- Correo único por propietario entre contactos activos e inactivos; al eliminar físicamente el registro, el correo queda disponible para reutilización por ese propietario.
 - El `id` de ruta debe ser entero positivo.
 - Toda consulta/update/delete filtra simultáneamente por `ID_CEM` y el documento autenticado.
 
@@ -193,6 +199,7 @@ No incluir correo del contacto ni error interno de SMTP en la respuesta. El fron
 - `:id` entero positivo; ruta existente y `ESTADO_RUTA.NOMBRE_ERU = 'EN_CURSO'`.
 - Autorizar conductor dueño o pasajero con reserva/solicitud confirmada conforme al estado existente. Definir con una prueba de integración cuál de `SOLICITUD_CUPO.ACEPTADA` y `CUPO_RUTA.RESERVADO` es la fuente de verdad; aceptar ambas solo si se comprueba que representan la misma participación vigente.
 - Debe existir al menos un contacto. Si no, `409 CONTACTOS_NO_CONFIGURADOS`; la UI ofrece navegar a configuración, pero no bloquea la edición de contactos por iniciar una ruta.
+- El envío selecciona exclusivamente contactos del propietario con `ACTIVO_CEM = 'S'`; los inactivos nunca reciben alertas. Si no hay contactos activos, responder `409 CONTACTOS_NO_CONFIGURADOS`.
 - `latitud` y `longitud` deben estar ambas presentes o ambas ausentes; latitud `[-90, 90]`, longitud `[-180, 180]`.
 - Limitar tasa, inicialmente a una activación cada 30 segundos por usuario y ruta, además de deduplicación idempotente. La emergencia no debe tener un mecanismo que permita enviar correo arbitrario a emails proporcionados por el cliente.
 - Enviar un correo por contacto con timeout máximo acotado; ejecutar concurrencia limitada y recopilar resultados con `Promise.allSettled` o equivalente.
@@ -211,10 +218,10 @@ Estados de emergencia acordados (sin persistencia):
 |---|---|---|
 | `400` | `DATOS_INVALIDOS` | Campos mal formados, coordenadas parciales/fuera de rango o body con campos no permitidos. |
 | `401` | `NO_AUTENTICADO` | JWT ausente, inválido o expirado. |
-| `403` | `SIN_PERMISO` | No es propietario del contacto/no participa como usuario habilitado. |
+| `403` | `SIN_PERMISO` | No participa como usuario habilitado en la ruta. |
 | `404` | `NO_ENCONTRADO` | Ruta/contacto inexistente; contacto ajeno se comporta como inexistente. |
-| `409` | `ESTADO_NO_VALIDO` | Ruta no está `EN_CURSO`, falta de contactos o conflicto de idempotencia. |
-| `429` | `LIMITE_EXCEDIDO` | Límite de contactos o frecuencia alcanzado. |
+| `409` | `CONTACTOS_NO_CONFIGURADOS`, `LIMITE_CONTACTOS_ACTIVOS`, `CORREO_DUPLICADO`, `ESTADO_NO_VALIDO`, `CONFLICTO_IDEMPOTENCIA` | No hay contactos activos, se excede el máximo de cinco activos, el correo ya está reservado por ese propietario, la ruta no está `EN_CURSO` o hay conflicto de idempotencia. |
+| `429` | `LIMITE_FRECUENCIA` | Frecuencia de activación de emergencia alcanzada. |
 | `500` | `ERROR_INTERNO` | Falla inesperada antes de poder formar un resultado de negocio. |
 
 Un fallo de email no usa `500` si el servidor sí pudo procesar todos los intentos y reportar el resultado: devuelve `200` con estado `ERROR` parcial o total.

@@ -120,6 +120,13 @@ class ApiClient {
     });
   }
 
+  async patch<T>(url: string, body?: any) {
+    return this.fetch<T>(url, {
+      method: 'PATCH',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  }
+
   async delete<T>(url: string) {
     return this.fetch<T>(url, {
       method: 'DELETE',

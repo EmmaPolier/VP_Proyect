@@ -82,8 +82,21 @@ export function InputOTPForm() {
         })
       )
       localStorage.setItem("rolActivo", response.data.id_perfil.toString())
-      localStorage.removeItem("pendingVerification")
-      router.push("/dashboard")
+
+      if (pendingType === "driver") {
+        const vehicleContext = {
+          id: response.data.id,
+          email: response.data.email,
+          type: "driver",
+        }
+
+        localStorage.setItem("vehicleRegistrationContext", JSON.stringify(vehicleContext))
+        localStorage.removeItem("pendingVerification")
+        router.push("/signup/driver/vehicle")
+      } else {
+        localStorage.removeItem("pendingVerification")
+        router.push("/dashboard")
+      }
     } catch (err: any) {
       console.error("Verify error:", err)
       if (err.response?.data?.message) {

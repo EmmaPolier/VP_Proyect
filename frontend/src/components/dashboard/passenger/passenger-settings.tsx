@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { apiClient } from '@/lib/api-client'
 import { API_ENDPOINTS } from '@/lib/api-constants'
+import { EmergencyContacts } from '@/components/dashboard/emergency-contacts'
 
 interface UserProfile {
   documento: string
@@ -178,6 +179,8 @@ export function PassengerSettings() {
           </div>
         </CardContent>
       </Card>
+
+      <EmergencyContacts />
 
       {/* Zona de Peligro */}
       <Card className="border-red-200">

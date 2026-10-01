@@ -195,7 +195,7 @@ export function SignupForm({
         } else {
           // Nuevo usuario
           if (formData.role === "DRIVER") {
-            router.push("/signup/driver/vehicle")
+            router.push("/auth")
           } else {
             router.push("/auth")
           }
