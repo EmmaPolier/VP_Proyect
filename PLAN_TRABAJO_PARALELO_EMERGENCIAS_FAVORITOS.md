@@ -64,12 +64,13 @@ Cada área tiene un solo responsable de escritura. Los demás contribuyen median
 
 **Objetivo:** Guardar, eliminar y consultar conductores favoritos de forma privada e idempotente.
 
-- **Desarrollador 1, backend/revisión:** Revisa autorización, formato de respuesta y consistencia de errores; confirma que el documento autenticado determina el propietario y que las operaciones no aceptan un propietario arbitrario del cliente.
-- **Desarrollador 2, frontend:** Agrega acción de marcar/quitar favorito en vistas de conductores y una sección de lista con estados vacío, carga y error. Evita solicitudes repetidas mientras una acción está pendiente.
-- **Desarrollador 3, datos y backend:** ~~Prepara los scripts para crear `FAVORITO_CONDUCTOR` con `ID_FCO`, `DOCUMENTO_USU_FCO`, `ID_UPE_CONDUCTOR_FCO`, `FECHA_CREACION_FCO`, secuencia, FKs, unicidad usuario-conductor e índice por conductor.~~ Implementa `favorito-conductor.controller.js` y rutas CRUD/listado.
-- **Endpoints:** `GET /api/usuario/conductores-favoritos`, `POST /api/usuario/conductores-favoritos/:idUpe`, `DELETE /api/usuario/conductores-favoritos/:idUpe`.
-- **Validaciones y pruebas:** El objetivo debe ser un perfil `CONDUCTOR`, no el usuario actual; rechazar identificadores inexistentes y perfiles de otro tipo. Probar idempotencia, aislamiento y lista tras recarga.
-- **Criterio de salida:** La relación usuario-conductor es única en Oracle; agregar o quitar un favorito no afecta a otros usuarios y la lista muestra solo información pública autorizada.
+- **Desarrollador 1, backend/revisión:** ~~Implementa `favorito.controller.js` y `favorito.routes.js`, montados bajo `/api/usuario/conductores-favoritos`. La identidad y el rol pasajero se obtienen del JWT; la lista y las modificaciones quedan limitadas al usuario autenticado.~~ Pendiente de revisión: definir respuesta idempotente para altas repetidas; actualmente una petición que no agrega ningún registro puede responder `400`.
+- **Desarrollador 2, frontend:** ~~Implementa la página `/dashboard/passenger/favoritos`, la lista de favoritos y candidatos con estados de carga, vacío y error, selección y alta múltiple, y eliminación con confirmación. Añade la página al menú dinámico del pasajero, con el marco de sidebar/header y un icono propio.~~
+- **Desarrollador 3, datos y backend:** ~~Crea `FAVORITO_CONDUCTOR` y `SEQ_FAVORITO_CONDUCTOR`, sus claves foráneas, unicidad usuario-conductor e índice por conductor en los scripts 9, 10 y 11; los módulos se ejecutaron correctamente según el registro recibido. Añade la entrada de menú para el perfil pasajero mediante `13script_Menu_Conductores_Favoritos.sql`; el usuario confirmó que aparece y navega.~~
+- **Endpoints implementados:** `GET /api/usuario/conductores-favoritos`, `GET /api/usuario/conductores-favoritos/candidatos`, `POST /api/usuario/conductores-favoritos` con body `{ idsUpeConductor: number[] }`, `DELETE /api/usuario/conductores-favoritos/:idUpe`.
+- **Validaciones implementadas:** ~~Requiere pasajero autenticado; obtiene el propietario del JWT; limita altas a perfiles de conductor relacionados con viajes aceptados y cupos válidos; rechaza auto-favoritos e IDs inválidos; limita altas múltiples a 50 y restringe bajas al propietario.~~
+- **Pendiente de integración:** Probar en backend y Oracle las lecturas, candidatos, alta, baja, aislamiento entre usuarios y recarga de la lista. Verificar alta repetida y ajustar su respuesta para cumplir la idempotencia acordada. No consta aún una prueba completa después del `404` reportado.
+- **Criterio de salida:** Pendiente hasta que pasen las pruebas de integración y la operación de alta repetida se comporte de forma idempotente; la relación usuario-conductor debe seguir siendo única en Oracle y no exponer datos privados.
 
 ## Fase 5: Detalle, viajes y solicitud desde favoritos
 
