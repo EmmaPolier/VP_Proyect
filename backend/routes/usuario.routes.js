@@ -3,6 +3,7 @@ import { authMiddleware } from '../middlewares/auth.middleware.js';
 import { deleteAccount } from '../controllers/auth.controller.js';
 import { getUserVehicles, getUserTravelHistory, createUserVehicle, deleteUserVehicle } from '../controllers/usuario.controller.js';
 import contactoEmergenciaRoutes from './contacto-emergencia.routes.js';
+import favoritoRoutes from './favorito.routes.js';
 
 const router = express.Router();
 
@@ -22,5 +23,8 @@ router.get('/historial-viajes', authMiddleware, getUserTravelHistory);
 
 // Eliminar cuenta de usuario
 router.post('/delete-account', authMiddleware, deleteAccount);
+
+// Rutas de favoritos'
+router.use('/conductores-favoritos', favoritoRoutes);
 
 export default router;

@@ -61,6 +61,11 @@ export const API_ENDPOINTS = {
   GET_VEHICLE_BRANDS: `${API_BASE_URL}/vehicles/brands`,
   GET_VEHICLE_COLORS: `${API_BASE_URL}/vehicles/colors`,
   GET_VEHICLE_MODELS: `${API_BASE_URL}/vehicles/models`,
+
+  // Conductores favoritos
+  FAVORITE_DRIVERS: `${API_BASE_URL}/api/usuario/conductores-favoritos`,
+  FAVORITE_DRIVER_CANDIDATES: `${API_BASE_URL}/api/usuario/conductores-favoritos/candidatos`,
+  DELETE_FAVORITE_DRIVER: (idUpe: number) => `${API_BASE_URL}/api/usuario/conductores-favoritos/${idUpe}`,
 };
 
 export const ESTADO_TIPOS = {

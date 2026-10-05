@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Wallet, MapPin, Settings, LogOut, Truck, MessageSquare, History, Users, FileText, BarChart3, Loader2 } from "lucide-react"
+import { Wallet, MapPin, Settings, LogOut, Truck, MessageSquare, History, Users, FileText, BarChart3, Heart, Loader2 } from "lucide-react"
 import { RoleSwitcher } from "@/components/role-switcher"
 import { apiClient } from "@/lib/api-client"
 import { API_ENDPOINTS } from "@/lib/api-constants"
@@ -50,6 +50,7 @@ const iconMap: { [key: string]: React.ComponentType<{ className: string }> } = {
   '/passenger/wallet': Wallet,
   '/passenger/profile': Users,
   '/passenger/settings': Settings,
+  '/dashboard/passenger/favoritos': Heart,
   '/admin/users': Users,
   '/admin/vehicles': Truck,
   '/admin/routes': MapPin,
