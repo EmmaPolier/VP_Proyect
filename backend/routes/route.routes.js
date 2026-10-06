@@ -12,7 +12,9 @@ import {
   updateSolicitudStatus,
   cancelSolicitud,
   finalizeRoute,
+  startRoute,
 } from '../controllers/route.controller.js';
+import { sendRouteEmergency } from '../controllers/emergencia.controller.js';
 
 const router = express.Router();
 
@@ -29,6 +31,8 @@ router.get('/dashboard', authMiddleware, getPassengerDashboard);
 router.get('/driver-dashboard', authMiddleware, getDriverDashboard);
 router.get('/solicitudes/mine', authMiddleware, getMySolicitudes);
 router.get('/solicitudes/driver', authMiddleware, getDriverSolicitudes);
+router.post('/:id/iniciar', authMiddleware, startRoute);
+router.post('/:id/emergencias', authMiddleware, sendRouteEmergency);
 router.post('/:id/finalizar', authMiddleware, finalizeRoute);
 
 export default router;

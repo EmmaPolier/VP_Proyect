@@ -53,35 +53,73 @@ Cada área tiene un solo responsable de escritura. Los demás contribuyen median
 
 **Objetivo:** Registrar una alerta durante una ruta en curso y notificar a cada contacto con trazabilidad.
 
-- **Desarrollador 1, backend:** Implementa `emergencia.controller.js`, `emergencia.routes.js` y `emergencia.service.js`. Verifica que el usuario sea el conductor o un pasajero con solicitud aceptada/cupo reservado, valida `EN_CURSO`, aplica rate limit e idempotencia, registra la emergencia y encola notificaciones. Amplía `email.service.js` con una plantilla segura; implementa worker/reintentos y estados por destinatario. Usar el mecanismo de trabajo asíncrono disponible en el proyecto; si no existe cola, acordar una tabla outbox y un proceso de polling Oracle con bloqueo de filas, sin enviar todos los correos dentro de la petición HTTP.
-- **Desarrollador 2, frontend:** Agrega botón de emergencia en ruta activa/dashboard de viaje, confirmación explícita, solicitud de geolocalización, envío de mensaje opcional y confirmación del registro. Si no hay permiso GPS, no bloquea la alerta y explica que se enviará sin posición actual.
-- **Desarrollador 3, base de datos:** Añade `EMERGENCIA_RUTA`: `ID_EME`, `ID_RUT_EME`, `DOCUMENTO_USU_EME`, `ROL_USUARIO_EME`, `LATITUD_EME`, `LONGITUD_EME`, `UBICACION_TEXTO_EME`, `MENSAJE_EME`, `ESTADO_ENVIO_EME`, `CLAVE_IDEMPOTENCIA_EME`, `FECHA_CREACION_EME`; y `NOTIFICACION_EMERGENCIA`: `ID_NEM`, `ID_EME_NEM`, `ID_CEM_NEM`, `CORREO_DESTINO_NEM`, `ESTADO_NEM`, `INTENTOS_NEM`, `ULTIMO_ERROR_NEM`, `FECHA_CREACION_NEM`, `FECHA_ENVIO_NEM`. Añade secuencias, FKs, unicidad de idempotencia y de emergencia/destinatario, e índices para pendientes y consultas históricas. El correo destinatario conserva una copia histórica para auditoría.
-- **Endpoints:** `POST /api/routes/:id/emergencias`, `GET /api/usuario/emergencias?limite=&cursor=`, `GET /api/routes/:id/emergencias/mine`.
-- **Validaciones y pruebas:** Coordenadas opcionales pero conjuntas y dentro de rango; texto limitado y escapado al generar HTML; se exige al menos un contacto activo. Probar no participante, ruta fuera de curso, duplicado idempotente, fallo de email, reintentos, permisos GPS denegados y entrega separada por contacto.
-- **Criterio de salida:** La emergencia queda consultable aunque el correo falle; ningún usuario ajeno puede activar o leer una alerta; cada destinatario tiene estado verificable y los reintentos no duplican el evento.
+- **Alcance acordado con el contrato API:** Esta primera versión no persiste alertas, no incluye historial y no crea tablas ni worker/outbox. Envía un correo individual por contacto activo y devuelve el estado agregado y el resultado por contacto. La aceptación del proveedor no garantiza que el destinatario lo haya leído.
+- **Desarrollador 1, backend:** Verifica participación de conductor o pasajero con solicitud aceptada y cupo reservado; solo permite alertas en `EN_CURSO`; valida coordenadas opcionales, exige contactos activos y envía correos individuales con plantilla HTML escapada. Aplica `Idempotency-Key` por diez minutos y un límite de una activación cada 30 segundos por usuario/ruta.
+- **Desarrollador 2, frontend:** Agrega confirmación explícita y solicitud de geolocalización opcional en las rutas en curso. La denegación o indisponibilidad del GPS no bloquea el envío; muestra el resultado agregado y cuántos correos fallaron. El conductor necesita una transición autorizada `ACTIVA` → `EN_CURSO` para habilitar la alerta.
+- **Desarrollador 3, datos:** No hay migración para esta entrega; se reutilizan `CONTACTO_EMERGENCIA`, `RUTA`, `SOLICITUD_CUPO` y `CUPO_RUTA`.
+- **Endpoints:** `POST /api/routes/:id/iniciar` para que el conductor dueño pase una ruta de `ACTIVA` a `EN_CURSO`; `POST /api/routes/:id/emergencias` para enviar la alerta. No se ofrecen endpoints de historial.
+- **Limitación operativa:** La idempotencia y el rate limit se guardan en memoria; no se comparten entre instancias y se pierden al reiniciar el backend. Si el despliegue requiere réplicas, migrar a almacenamiento compartido antes de escalar.
+- **Validaciones y pruebas:** Probar no participante, ruta inexistente/fuera de curso, duplicado con misma clave, conflicto de clave, rate limit, GPS denegado, cero contactos activos, envío parcial y fallo SMTP.
+- **Criterio de salida:** Solo participantes en una ruta en curso pueden activar la alerta; GPS ausente no la bloquea; cada contacto recibe un correo separado y el frontend distingue `ENVIADO` de `ERROR`.
 
 ## Fase 4: Gestión de conductores favoritos
 
 **Objetivo:** Guardar, eliminar y consultar conductores favoritos de forma privada e idempotente.
 
-- **Desarrollador 1, backend/revisión:** ~~Implementa `favorito.controller.js` y `favorito.routes.js`, montados bajo `/api/usuario/conductores-favoritos`. La identidad y el rol pasajero se obtienen del JWT; la lista y las modificaciones quedan limitadas al usuario autenticado.~~ Pendiente de revisión: definir respuesta idempotente para altas repetidas; actualmente una petición que no agrega ningún registro puede responder `400`.
+- **Desarrollador 1, backend/revisión:** ~~Implementa `favorito.controller.js` y `favorito.routes.js`, montados bajo `/api/usuario/conductores-favoritos`. La identidad y el rol pasajero se obtienen del JWT; la lista y las modificaciones quedan limitadas al usuario autenticado.~~ El alta repetida tiene respuesta de éxito idempotente en la implementación local; falta verificarla contra Oracle.
 - **Desarrollador 2, frontend:** ~~Implementa la página `/dashboard/passenger/favoritos`, la lista de favoritos y candidatos con estados de carga, vacío y error, selección y alta múltiple, y eliminación con confirmación. Añade la página al menú dinámico del pasajero, con el marco de sidebar/header y un icono propio.~~
 - **Desarrollador 3, datos y backend:** ~~Crea `FAVORITO_CONDUCTOR` y `SEQ_FAVORITO_CONDUCTOR`, sus claves foráneas, unicidad usuario-conductor e índice por conductor en los scripts 9, 10 y 11; los módulos se ejecutaron correctamente según el registro recibido. Añade la entrada de menú para el perfil pasajero mediante `13script_Menu_Conductores_Favoritos.sql`; el usuario confirmó que aparece y navega.~~
 - **Endpoints implementados:** `GET /api/usuario/conductores-favoritos`, `GET /api/usuario/conductores-favoritos/candidatos`, `POST /api/usuario/conductores-favoritos` con body `{ idsUpeConductor: number[] }`, `DELETE /api/usuario/conductores-favoritos/:idUpe`.
 - **Validaciones implementadas:** ~~Requiere pasajero autenticado; obtiene el propietario del JWT; limita altas a perfiles de conductor relacionados con viajes aceptados y cupos válidos; rechaza auto-favoritos e IDs inválidos; limita altas múltiples a 50 y restringe bajas al propietario.~~
-- **Pendiente de integración:** Probar en backend y Oracle las lecturas, candidatos, alta, baja, aislamiento entre usuarios y recarga de la lista. Verificar alta repetida y ajustar su respuesta para cumplir la idempotencia acordada. No consta aún una prueba completa después del `404` reportado.
+- **Pendiente de integración:** El usuario confirmó que ve la vista y puede agregar un conductor. Probar en backend y Oracle las lecturas, candidatos, baja, aislamiento entre usuarios, recarga de la lista y alta repetida.
 - **Criterio de salida:** Pendiente hasta que pasen las pruebas de integración y la operación de alta repetida se comporte de forma idempotente; la relación usuario-conductor debe seguir siendo única en Oracle y no exponer datos privados.
 
 ## Fase 5: Detalle, viajes y solicitud desde favoritos
 
 **Objetivo:** Mostrar información útil del conductor y permitir solicitar un viaje directamente desde sus rutas disponibles.
 
-- **Desarrollador 1, backend:** Implementa o coordina `GET /api/conductores/:idUpe` y `GET /api/conductores/:idUpe/viajes?estado=&limite=&cursor=`. Devuelve estado del usuario, nombre/foto pública, calificación y rutas permitidas. Verifica filtros de privacidad y contrato de paginación.
-- **Desarrollador 2, frontend:** Construye detalle del conductor desde favoritos, secciones de viajes activos/en curso e historial, filtros/paginación y navegación a solicitud. Reutiliza el flujo y formulario existentes, mostrando confirmación antes de enviar.
-- **Desarrollador 3, consultas y revisión de datos:** Implementa consultas sobre `USUARIO`, `ESTADO_USUARIO`, `USUARIO_PERFIL`, `RUTA`, `ESTADO_RUTA`, `HISTORIAL_VIAJE` y `CALIFICACION`; valida índices y evita consultas N+1. Confirma la fuente de verdad para viajes finalizados.
-- **Solicitud:** Reutilizar `POST /api/routes/:id/solicitudes`, no crear un segundo flujo de reserva. El servidor sigue validando perfil pasajero, ruta `ACTIVA`, cupos, solicitud duplicada, identidad del conductor y método de pago.
-- **Validaciones y pruebas:** No revelar pasajeros, documentos, pagos ni ubicaciones precisas históricas. Probar páginas vacías, cursores, filtros de estado, conductor inexistente, rutas completadas/sin cupo y solicitud del propio conductor.
-- **Criterio de salida:** El usuario puede pasar de favorito a detalle y solicitar una ruta válida con las reglas ya existentes; historial y activos se presentan sin exponer datos privados.
+- **Estado de entrada:** El usuario confirmó que Favoritos, contactos y el flujo de emergencia actual funcionan en la prueba manual. Las pruebas negativas y de privacidad continúan siendo parte de la verificación de aceptación; no bloquean el diseño de esta fase.
+
+### Orden de ejecución
+
+1. **Cerrar el contrato y consultas backend — implementado localmente**
+   - Implementar `GET /api/conductores/:idUpe` y `GET /api/conductores/:idUpe/viajes?estado=ACTIVA&limite=20&cursor=`.
+   - Validar que `idUpe` sea entero positivo y corresponda a un perfil `CONDUCTOR`.
+   - Perfil público: `idUpe`, nombre visible, foto pública si existe, calificación, estado de cuenta y total de viajes completados. No incluir documento, correo, teléfono ni identificadores de pasajeros.
+   - Viajes: estados permitidos `ACTIVA`, `EN_CURSO` y `COMPLETADA`; límite por defecto 20 y máximo 50; cursor opaco con orden estable por fecha e ID. Rechazar filtros/límites inválidos con error claro.
+   - Viajes actuales pueden mostrar salida/destino generalizados, fecha, cupos disponibles y precio. Viajes completados no muestran coordenadas precisas, pasajeros ni pagos.
+   - Usar consultas parametrizadas y agregaciones/subconsultas para evitar N+1. El conteo usa rutas con estado `COMPLETADA`, que es la fuente actual de cierre en `route.controller.js`.
+   - Implementación en `backend/controllers/conductores.controller.js` y `backend/routes/conductores.routes.js`; montaje en `backend/index.js`. Las lecturas se probaron contra Oracle con JWT y cinco perfiles de conductor; solo se serializaron los campos públicos acordados.
+
+2. **Construir el detalle del conductor en Favoritos — implementado localmente**
+   - Hacer clic en un favorito para abrir su detalle sin perder el contexto de navegación.
+   - Mostrar estados de carga, error, perfil inexistente y perfil sin viajes.
+   - Añadir filtros por estado y paginación con `nextCursor`; no solicitar todos los viajes de una vez.
+   - Mantener la lista de favoritos y sus operaciones actuales sin regresiones.
+   - La pantalla se integró en `frontend/src/components/favorite-drivers.tsx`; falta validación manual de navegación, filtros y paginación en navegador.
+
+3. **Conectar las solicitudes al flujo existente — implementado localmente**
+   - Ofrecer “Solicitar cupo” únicamente en rutas `ACTIVA` que aún tengan cupos.
+   - Confirmar acción y, si el flujo actual lo requiere, recoger método de pago usando los mismos tipos/validaciones existentes.
+   - Reutilizar `POST /api/routes/:id/solicitudes`; no crear una ruta alternativa desde Favoritos.
+   - Mostrar éxito, solicitud duplicada, ruta sin cupos, ruta cerrada y otros errores devueltos por la API.
+   - La acción usa `POST /api/routes/:id/solicitudes`. El endpoint de reserva toma el precio canónico de `RUTA.PRECIO_CUPO_RUT` en vez de confiar en el precio enviado por el cliente. No se creó una solicitud real porque no había una ruta futura disponible para una prueba no destructiva.
+
+4. **Pruebas y cierre — pendiente**
+   - Backend verificado: endpoint sin JWT (`401`), ID inválido, estados inválidos, límites fuera de rango, cursor inválido; endpoints autenticados consultados contra Oracle. Se validaron los campos permitidos del perfil, los tres filtros de estado y la ausencia de datos privados/cupo/precio en viajes completados. No había datos suficientes para una segunda página real.
+   - Pendiente backend: ejercitar una reserva válida y sus rechazos (duplicada/propia/sin cupos) con una ruta y usuarios dedicados de integración; confirmar con la UI el precio mostrado frente al precio calculado por servidor.
+   - UI: perfil sin viajes, lista vacía, carga/error, cambio de filtro, siguiente página y navegación de regreso a Favoritos.
+   - Solicitudes: ruta disponible, sin cupos, completada, duplicada, conductor que solicita su propia ruta y usuario sin perfil pasajero.
+   - Regresión pendiente: validar en navegador el listado, alta y baja de Favoritos; búsqueda de rutas y creación/aceptación de solicitudes ya existentes.
+
+### Responsables y dependencias
+
+- **Desarrollador 1, backend:** Contratos, autorización y endpoints de perfil/viajes. Depende de la verificación de las columnas reales de perfil, estado y foto.
+- **Desarrollador 2, frontend:** Detalle del conductor y conexión de solicitud. Puede iniciar con fixtures del contrato; la integración final depende de los endpoints.
+- **Desarrollador 3, consultas/datos:** Confirmar fuente de viajes completados, revisar índices y validar paginación/privacidad con el esquema Oracle; no se espera migración si las tablas actuales cubren el contrato.
+- **Dependencias:** contrato API → consultas/endpoints → UI de detalle → solicitud reutilizada → pruebas de privacidad y regresión.
+
+**Criterio de salida:** Desde Favoritos se abre un perfil público, se consultan viajes paginados sin filtrar datos privados y se puede solicitar una ruta elegible usando el endpoint existente. Todos los casos negativos y de regresión anteriores pasan.
 
 ## Matriz de dependencias y paralelismo
 
@@ -89,7 +127,7 @@ Cada área tiene un solo responsable de escritura. Los demás contribuyen median
 |---|---|---|---|---|
 | 1. Contratos | Contrato API y permisos | Flujos UI y tipos | Diseño de esquema | Contratos y modelo aprobados |
 | 2. Contactos | API y autorización | Gestión de contactos UI | Tabla y restricciones | Migración + CRUD integrado |
-| 3. Emergencia | API, email y worker | Botón y estados UI | Tablas, índices y secuencias | Registro, notificación y reintentos probados |
+| 3. Emergencia | API, email e idempotencia temporal | Botón, GPS opcional y estados UI | Reutiliza tablas actuales; sin migración | Participación, estado y entrega de correo verificados |
 | 4. Favoritos | Revisión de seguridad | Lista/acciones UI | Tabla y API de favoritos | CRUD integrado e idempotente |
 | 5. Detalle y viajes | API y autorización | Detalle/solicitud UI | Consultas y rendimiento | Flujo integral y privacidad aprobados |
 

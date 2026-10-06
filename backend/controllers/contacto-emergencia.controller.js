@@ -258,10 +258,13 @@ export async function editarContactoEmergencia(req, res) {
     }
 
     await connection.commit();
+    const activoActualizado = Object.hasOwn(valores, 'activo') ? valores.activo : activoActual;
     return responderExito(res, 200, 'Contacto actualizado correctamente', {
       id,
-      ...valores,
-      ...(Object.hasOwn(valores, 'activo') ? {} : { activo: activoActual })
+      ...(Object.hasOwn(valores, 'nombre') ? { nombre: valores.nombre } : {}),
+      ...(Object.hasOwn(valores, 'relacion') ? { relacion: valores.relacion } : {}),
+      ...(Object.hasOwn(valores, 'correo') ? { correo: valores.correo } : {}),
+      activo: activoActualizado
     });
   } catch (error) {
     if (connection) await connection.rollback();

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Cliente HTTP para comunicación con API Backend
  */
 
@@ -34,7 +34,6 @@ class ApiClient {
     }
 
     try {
-      // Buscar primero en currentUser (nueva estructura)
       const currentUserStr = window.localStorage.getItem('currentUser')
       if (currentUserStr) {
         const parsed = JSON.parse(currentUserStr)
@@ -42,13 +41,12 @@ class ApiClient {
           return parsed.token
         }
       }
-      
-      // Fallback: buscar en authToken (backward compatibility)
+
       const authToken = window.localStorage.getItem('authToken')
       if (authToken) {
         return authToken
       }
-      
+
       return null
     } catch {
       return null
@@ -80,10 +78,13 @@ class ApiClient {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || `HTTP Error: ${response.status}`
-        );
+        const errorData = (await response.json().catch(() => ({}))) as Partial<Record<'message' | 'error', string>>;
+        const backendMessage = typeof errorData.message === 'string'
+          ? errorData.message
+          : typeof errorData.error === 'string'
+            ? errorData.error
+            : `HTTP Error: ${response.status}`;
+        throw new Error(backendMessage);
       }
 
       const data: ApiResponse<T> = await response.json();
@@ -106,21 +107,21 @@ class ApiClient {
     });
   }
 
-  async post<T>(url: string, body?: any) {
+  async post<T>(url: string, body?: unknown) {
     return this.fetch<T>(url, {
       method: 'POST',
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   }
 
-  async put<T>(url: string, body?: any) {
+  async put<T>(url: string, body?: unknown) {
     return this.fetch<T>(url, {
       method: 'PUT',
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   }
 
-  async patch<T>(url: string, body?: any) {
+  async patch<T>(url: string, body?: unknown) {
     return this.fetch<T>(url, {
       method: 'PATCH',
       body: body !== undefined ? JSON.stringify(body) : undefined,

@@ -1,7 +1,33 @@
 # 🚀 RESUMEN EJECUTIVO - FASES VP PROJECT
 
-**Fecha**: 3 de Junio, 2026  
-**Completado**: 62.5% | **Etapa Actual**: FASE 7 - Historial & Ratings
+**Estado revisado**: 6 de octubre de 2026
+**Nota**: El tablero detallado que sigue es una captura histórica del 3 de junio de 2026; sus porcentajes y bugs requieren nueva verificación.
+
+## Estado actual y siguientes tareas
+
+Confirmado por el usuario: Favoritos, contactos y el flujo de emergencia actual funcionan en la prueba manual. El flujo de alta de vehículo y creación de ruta también quedó funcionando tras corregir la lectura de `GET /vehicles`. No se deben considerar probadas por eso las pruebas negativas, de privacidad o paginación.
+
+### Siguiente plan: Fase 5 — Detalle, viajes y solicitudes desde Favoritos
+
+| Orden | Tarea | Entregable / criterio de aceptación | Estado |
+|---|---|---|---|
+| 1 | Implementar perfil público `GET /api/conductores/:idUpe`. | Consulta autenticada contra Oracle verificada en cinco perfiles de conductor; la respuesta solo incluye campos públicos permitidos. | Verificado |
+| 2 | Implementar viajes `GET /api/conductores/:idUpe/viajes?estado=&limite=20&cursor=`. | Consultas Oracle de los tres estados verificadas; límites y filtros inválidos rechazados; viaje completado comprobado sin cupos/precio ni datos de pasajeros. Se comprobó el límite de página y ausencia de cursor cuando no hay página siguiente. No había suficientes viajes para comprobar una segunda página real. | Verificado parcialmente |
+| 3 | Añadir detalle del conductor favorito en frontend. | Implementado con perfil, filtro, paginación y estados de carga/vacío/error; falta validar el recorrido visual en el navegador. | Implementado; prueba manual pendiente |
+| 4 | Solicitar cupo desde una ruta del detalle. | Implementado usando el `POST /api/routes/:id/solicitudes` existente. El backend obtiene siempre el monto desde `RUTA.PRECIO_CUPO_RUT`, no del body del cliente. No había rutas activas futuras para enviar una solicitud de prueba sin mutar datos. | Implementado; reserva real pendiente |
+| 5 | Ejecutar pruebas de integración y regresión. | Se verificaron autenticación, validación de ID/estado/límites/cursor, allowlists y privacidad mediante lecturas Oracle; faltan prueba visual, reserva con cuenta de integración y regresión completa de Favoritos. | En curso |
+
+**Dependencias:** contrato y consultas → endpoints (implementados y consultados contra Oracle) → detalle (implementado) → solicitud existente (implementada) → pruebas visuales y reserva de integración. No se agregó migración Oracle. Una instancia backend nueva respondió `401` sin token; las lecturas autenticadas devolvieron datos con los campos acordados. Para probar una reserva se requiere una ruta `ACTIVA` futura con cupos y un pasajero de prueba, porque la operación modifica datos.
+
+**Pendiente concreto para cerrar Fase 5:** abrir Favoritos en el navegador, revisar perfil/filtros/paginación/regreso; hacer una reserva en una ruta futura de prueba; comprobar duplicado, ruta sin cupos/completada y solicitud propia; y repetir regresión de alta/baja/listado de Favoritos. Las solicitudes reales no se probaron porque no había una ruta futura elegible y no se deben insertar datos de prueba en la base compartida sin coordinación.
+
+**Alcance de Emergencias acordado:** la primera versión no persiste alertas ni usa cola/reintentos duraderos; envía un correo por cada contacto activo y reporta el estado por destinatario. La deduplicación temporal y el límite de frecuencia residen en memoria y, por tanto, solo aplican a una instancia del backend.
+
+---
+
+## Captura histórica del 3 de junio de 2026
+
+**Completado en esa fecha**: 62.5% | **Etapa reportada entonces**: FASE 7 - Historial & Ratings
 
 ---
 

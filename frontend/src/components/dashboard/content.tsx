@@ -28,6 +28,7 @@ import { DriverWallet } from "./driver/driver-wallet"
 import { DriverProfile } from "./driver/driver-profile"
 import { DriverSettings } from "./driver/driver-settings"
 import { PassengerSettings } from "./passenger/passenger-settings"
+import { EmergencyAlertButton } from "./emergency-alert-button"
 
 interface DashboardContentProps {
   userType?: "passenger" | "driver" | "admin"
@@ -1224,7 +1225,27 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
                                   </span>
                                 </p>
                                 <p className="text-sm text-muted-foreground">🚗 {route.vehiclePlate}</p>
-                                {route.status !== 'COMPLETADA' && (
+                                {route.status?.toUpperCase() === 'ACTIVA' && (
+                                  <Button
+                                    className="w-full md:w-auto bg-blue-600 text-white hover:bg-blue-700 text-xs"
+                                    onClick={async () => {
+                                      if (!confirm('¿Deseas iniciar este viaje? La ruta quedará marcada como EN_CURSO.')) return
+                                      try {
+                                        await apiClient.post(API_ENDPOINTS.START_ROUTE(route.id), {})
+                                        await loadDriverRoutes()
+                                      } catch (err) {
+                                        console.error('Error iniciando ruta:', err)
+                                        alert(err instanceof Error ? err.message : 'No se pudo iniciar el viaje.')
+                                      }
+                                    }}
+                                  >
+                                    Iniciar viaje
+                                  </Button>
+                                )}
+                                {route.status?.toUpperCase() === 'EN_CURSO' && (
+                                  <EmergencyAlertButton routeId={route.id} />
+                                )}
+                                {route.status?.toUpperCase() === 'EN_CURSO' && (
                                   <Button
                                     className="w-full md:w-auto bg-red-600 text-white hover:bg-red-700 text-xs"
                                     onClick={async () => {
@@ -1802,6 +1823,9 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
                                 </Button>
                               ) : (
                                 <span className="text-xs text-muted-foreground">-</span>
+                              )}
+                              {request.status?.toUpperCase() === 'ACEPTADA' && request.routeStatus?.toUpperCase() === 'EN_CURSO' && (
+                                <EmergencyAlertButton routeId={request.routeId} />
                               )}
                             </div>
                           </TableCell>

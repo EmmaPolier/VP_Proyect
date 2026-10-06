@@ -10,12 +10,27 @@ const transporter = nodemailer.createTransport({
 
 // Helper para ejecutar promesa con timeout
 async function withTimeout(promise, ms = 5000) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout de email')), ms)
-    ),
-  ]);
+  let timeoutId;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Timeout de email')), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character]);
 }
 
 export async function sendOTP(to, code) {
@@ -78,6 +93,42 @@ export async function sendNotificationEmail(to, subject, html) {
     console.error('[ERROR] Error enviando notificación:', error.message);
     throw error;
   }
+}
+
+export async function sendEmergencyNotification({
+  to,
+  userName,
+  routeId,
+  departure,
+  origin,
+  destination,
+  location,
+  sentAt,
+}) {
+  const safeName = escapeHtml(userName);
+  const locationDetails = location
+    ? `<p><strong>Ubicación actual:</strong> ${escapeHtml(location.latitud.toFixed(3))}, ${escapeHtml(location.longitud.toFixed(3))}</p>`
+    : '<p><strong>Ubicación actual:</strong> No disponible.</p>';
+  const html = `
+    <div style="font-family:sans-serif;max-width:560px;margin:auto;padding:24px">
+      <h2>Alerta de emergencia - VamosPuesDrive</h2>
+      <p>Algo ha salido mal con el viaje de <strong>${safeName}</strong>. Contáctate con esta persona lo antes posible y verifica que todo se encuentre bien.</p>
+      <p><strong>Ruta:</strong> ${escapeHtml(routeId)}</p>
+      <p><strong>Origen:</strong> ${escapeHtml(origin)}</p>
+      <p><strong>Destino:</strong> ${escapeHtml(destination)}</p>
+      <p><strong>Salida:</strong> ${escapeHtml(departure)}</p>
+      ${locationDetails}
+      <p><strong>Alerta registrada:</strong> ${escapeHtml(sentAt.toISOString())}</p>
+      <p>Equipo de VamosPuesDrive</p>
+    </div>
+  `;
+
+  await withTimeout(transporter.sendMail({
+    from: `"VamonosPues" <${process.env.EMAIL_USER}>`,
+    to,
+    subject: 'Alerta de emergencia - VamosPuesDrive',
+    html,
+  }), 5000);
 }
 
 export async function sendPasswordResetEmail(to, nombre, resetLink) {

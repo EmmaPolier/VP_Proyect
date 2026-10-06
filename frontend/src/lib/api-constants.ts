@@ -30,6 +30,8 @@ export const API_ENDPOINTS = {
   MY_SOLICITUDES: `${API_BASE_URL}/api/routes/solicitudes/mine`,
   DRIVER_SOLICITUDES: `${API_BASE_URL}/api/routes/solicitudes/driver`,
   DRIVER_ROUTES: `${API_BASE_URL}/api/routes/mis-rutas`,
+  START_ROUTE: (routeId: string | number) => `${API_BASE_URL}/api/routes/${routeId}/iniciar`,
+  ROUTE_EMERGENCY: (routeId: string | number) => `${API_BASE_URL}/api/routes/${routeId}/emergencias`,
   PASSENGER_DASHBOARD: `${API_BASE_URL}/api/routes/dashboard`,
   DRIVER_DASHBOARD: `${API_BASE_URL}/api/routes/driver-dashboard`,
   FINALIZE_ROUTE: (routeId: string | number) => `${API_BASE_URL}/api/routes/${routeId}/finalizar`,
@@ -66,6 +68,8 @@ export const API_ENDPOINTS = {
   FAVORITE_DRIVERS: `${API_BASE_URL}/api/usuario/conductores-favoritos`,
   FAVORITE_DRIVER_CANDIDATES: `${API_BASE_URL}/api/usuario/conductores-favoritos/candidatos`,
   DELETE_FAVORITE_DRIVER: (idUpe: number) => `${API_BASE_URL}/api/usuario/conductores-favoritos/${idUpe}`,
+  PUBLIC_DRIVER_PROFILE: (idUpe: number) => `${API_BASE_URL}/api/conductores/${idUpe}`,
+  DRIVER_TRIPS: (idUpe: number) => `${API_BASE_URL}/api/conductores/${idUpe}/viajes`,
 };
 
 export const ESTADO_TIPOS = {

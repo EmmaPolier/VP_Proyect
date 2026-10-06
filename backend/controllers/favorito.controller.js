@@ -161,11 +161,32 @@ export async function addFavoritos(req, res) {
   try {
     connection = await getConnection();
 
+    const favoritosActuales = await connection.execute(
+      `SELECT ID_UPE_CONDUCTOR_FCO
+       FROM FAVORITO_CONDUCTOR
+       WHERE DOCUMENTO_USU_FCO = :documento`,
+      { documento }
+    );
+
+    const favoritosExistentes = new Set(
+      (favoritosActuales.rows || []).map((row) => Number(row[0]))
+    );
+
+    const idsParaAgregar = ids.filter((idUpe) => !favoritosExistentes.has(idUpe));
+
+    if (idsParaAgregar.length === 0) {
+      return successResponse(
+        res,
+        { agregados: 0, omitidos: ids.length, yaExistentes: ids.length },
+        'Todos los conductores ya estaban en tus favoritos',
+        200
+      );
+    }
+
     let agregados = 0;
 
-    for (const idUpe of ids) {
+    for (const idUpe of idsParaAgregar) {
       try {
-        // Solo inserta si el conductor tiene relación válida con el pasajero y aún no es favorito
         const result = await connection.execute(
           `INSERT INTO FAVORITO_CONDUCTOR (
              ID_FCO,
@@ -189,21 +210,24 @@ export async function addFavoritos(req, res) {
         );
         agregados += result.rowsAffected || 0;
       } catch (error) {
-        // ORA-00001: ya era favorito (inserción concurrente), se omite
         if (error.errorNum !== 1) throw error;
       }
     }
 
-    if (agregados === 0) {
-      await connection.rollback();
-      return errorResponse(res, null, 'Ninguno de los conductores seleccionados puede agregarse a favoritos', 400);
-    }
-
     await connection.commit();
+
+    if (agregados === 0) {
+      return errorResponse(
+        res,
+        null,
+        'Ninguno de los conductores seleccionados puede agregarse a favoritos',
+        400
+      );
+    }
 
     successResponse(
       res,
-      { agregados, omitidos: ids.length - agregados },
+      { agregados, omitidos: ids.length - agregados, yaExistentes: ids.length - idsParaAgregar },
       agregados === 1 ? 'Conductor agregado a favoritos' : 'Conductores agregados a favoritos',
       201
     );

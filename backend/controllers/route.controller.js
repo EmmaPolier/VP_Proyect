@@ -237,14 +237,27 @@ export async function createRoute(req, res) {
       return res.status(403).json({ message: 'Solo conductores pueden crear rutas' });
     }
 
-    const vehicleResult = await connection.execute(
-      `SELECT ID_VEH FROM VEHICULO WHERE DOCUMENTO_USU_VEH = :documento AND ROWNUM = 1`,
-      { documento }
-    );
-    const vehicleId = vehicleResult.rows.length ? vehicleResult.rows[0][0] : null;
+    const requestedVehicleId = req.body?.vehicleId;
+    let vehicleResult;
+
+    if (requestedVehicleId) {
+      vehicleResult = await connection.execute(
+        `SELECT ID_VEH FROM VEHICULO WHERE ID_VEH = :vehicleId AND DOCUMENTO_USU_VEH = :documento`,
+        { vehicleId: Number(requestedVehicleId), documento }
+      );
+    } else {
+      vehicleResult = await connection.execute(
+        `SELECT ID_VEH FROM VEHICULO WHERE DOCUMENTO_USU_VEH = :documento ORDER BY FECHA_REGISTRO_VEH DESC`,
+        { documento }
+      );
+    }
+
+    const vehicleId = vehicleResult.rows?.length ? Number(vehicleResult.rows[0][0]) : null;
 
     if (!vehicleId) {
-      return res.status(400).json({ message: 'No se encontró un vehículo asociado al conductor' });
+      return res.status(400).json({
+        message: 'No se encontró un vehículo asociado al conductor. Registra primero un vehículo en “Mis vehículos”.'
+      });
     }
 
     const activeStateId = await getIdByName(connection, 'ESTADO_RUTA', 'ID_ERU', 'NOMBRE_ERU', 'ACTIVA');
@@ -330,9 +343,69 @@ export async function createRoute(req, res) {
   }
 }
 
+export async function startRoute(req, res) {
+  const document = req.user?.documento;
+  const routeId = Number(req.params.id);
+  let connection;
+
+  if (!document) return res.status(401).json({ message: 'Usuario no autenticado' });
+  if (!Number.isSafeInteger(routeId) || routeId <= 0) {
+    return res.status(400).json({ message: 'El ID de ruta debe ser un entero positivo' });
+  }
+
+  try {
+    connection = await getConnection();
+    const result = await connection.execute(
+      `UPDATE RUTA
+       SET ID_EST_RUT = (
+         SELECT ID_ERU FROM ESTADO_RUTA WHERE NOMBRE_ERU = 'EN_CURSO'
+       )
+       WHERE ID_RUT = :routeId
+         AND ID_EST_RUT = (
+           SELECT ID_ERU FROM ESTADO_RUTA WHERE NOMBRE_ERU = 'ACTIVA'
+         )
+         AND ID_UPE_RUT = (
+           SELECT ID_UPE FROM USUARIO_PERFIL
+           WHERE DOCUMENTO_USU_UPE = :document AND ID_PER_UPE = 2
+         )`,
+      { routeId, document },
+      { autoCommit: true }
+    );
+
+    if (result.rowsAffected === 0) {
+      const routeResult = await connection.execute(
+        'SELECT ID_RUT FROM RUTA WHERE ID_RUT = :routeId',
+        { routeId }
+      );
+      if (!routeResult.rows?.length) {
+        return res.status(404).json({ message: 'Ruta no encontrada' });
+      }
+      return res.status(409).json({
+        success: false,
+        message: 'La ruta no está disponible para iniciar o no pertenece a este conductor',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Viaje iniciado correctamente',
+      data: { routeId, status: 'EN_CURSO' },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('[ERROR] Error al iniciar la ruta:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'No fue posible iniciar el viaje',
+    });
+  } finally {
+    if (connection) await connection.close();
+  }
+}
+
 export async function createSolicitud(req, res) {
   const routeId = Number(req.params.id);
-  const { paymentMethod = 'CARTERA_VIRTUAL', amount, punto_encuentro = '' } = req.body;
+  const { paymentMethod = 'CARTERA_VIRTUAL', punto_encuentro = '' } = req.body;
   const documento = req.user?.documento;
 
   let connection;
@@ -399,7 +472,7 @@ export async function createSolicitud(req, res) {
       return res.status(403).json({ message: 'Solo pasajeros pueden solicitar cupo' });
     }
 
-    const monto = Number(amount ?? routePrice ?? 0);
+    const monto = Number(routePrice ?? 0);
     if (monto <= 0) {
       return res.status(400).json({ message: 'Monto de solicitud inválido' });
     }
@@ -1239,6 +1312,9 @@ export async function finalizeRoute(req, res) {
     const estRes = await connection.execute(`SELECT NOMBRE_ERU FROM ESTADO_RUTA WHERE ID_ERU = :id`, { id: idEstRut });
     const estName = estRes.rows.length ? estRes.rows[0][0] : null;
     if (estName === 'COMPLETADA') return res.status(400).json({ message: 'La ruta ya fue finalizada' });
+    if (estName !== 'EN_CURSO') {
+      return res.status(409).json({ message: 'Solo se puede finalizar una ruta que está en curso' });
+    }
 
     // Obtener estado ACEPTADA id
     const acceptedStatusId = await getIdByName(connection, 'ESTADO_SOLICITUD', 'ID_ESO', 'NOMBRE_ESO', 'ACEPTADA');

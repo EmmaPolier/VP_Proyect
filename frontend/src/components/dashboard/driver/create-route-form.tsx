@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { apiClient } from '@/lib/api-client'
-import { API_BASE_URL } from '@/lib/api-constants'
-import { AlertCircle, CheckCircle2, X, MapPin, Plus, Trash2 } from 'lucide-react'
+import { API_BASE_URL, API_ENDPOINTS } from '@/lib/api-constants'
+import { AlertCircle, CheckCircle2, Plus, Trash2 } from 'lucide-react'
 import { GoogleMap, Marker, DirectionsRenderer, useJsApiLoader } from '@react-google-maps/api'
 
 interface CreateRouteFormProps {
@@ -20,6 +20,28 @@ interface MeetingPoint {
   lng: number
   name: string
   order: number
+}
+
+interface DriverVehicle {
+  ID_VEH?: number | string
+  id?: number | string
+}
+
+function isDriverVehicle(value: unknown): value is DriverVehicle {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+
+  const id = 'id' in value ? value.id : 'ID_VEH' in value ? value.ID_VEH : undefined
+  return typeof id === 'number' || typeof id === 'string'
+}
+
+function hasVehiclesPayload(value: unknown): value is { vehiculos: DriverVehicle[] } {
+  if (typeof value !== 'object' || value === null || !('vehiculos' in value)) {
+    return false
+  }
+
+  return Array.isArray(value.vehiculos) && value.vehiculos.every(isDriverVehicle)
 }
 
 const containerStyle = {
@@ -44,7 +66,7 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [map, setMap] = useState<any>(null)
+  const [map, setMap] = useState<google.maps.Map | null>(null)
 
   const [formData, setFormData] = useState({
     originLat: 6.251839,
@@ -62,13 +84,16 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
   const [selectingMode, setSelectingMode] = useState<null | 'origin' | 'destination' | 'meeting'>(null)
   const [newPointName, setNewPointName] = useState('')
   const [selectedMeetingPointId, setSelectedMeetingPointId] = useState<string | null>(null)
-  const [directionsResult, setDirectionsResult] = useState<any>(null)
+  const [directionsResult, setDirectionsResult] = useState<google.maps.DirectionsResult | null>(null)
   const [totalDistance, setTotalDistance] = useState<string>('')
   const [totalDuration, setTotalDuration] = useState<string>('')
+  const [driverVehicles, setDriverVehicles] = useState<DriverVehicle[]>([])
+  const [vehiclesLoading, setVehiclesLoading] = useState(true)
+  const [vehicleLoadError, setVehicleLoadError] = useState<string | null>(null)
 
   const originInputRef = useRef<HTMLInputElement>(null)
   const destInputRef = useRef<HTMLInputElement>(null)
-  const directionsServiceRef = useRef<any>(null)
+  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
 
   // Agregar punto de encuentro
   const addMeetingPoint = () => {
@@ -161,11 +186,34 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
     }
   }, [isLoaded, map])
 
-  const onLoad = (mapInstance: any) => {
+  const loadDriverVehicles = async () => {
+    try {
+      setVehiclesLoading(true)
+      setVehicleLoadError(null)
+      const response = await apiClient.get<unknown>(API_ENDPOINTS.GET_USER_VEHICLES)
+      if (!hasVehiclesPayload(response)) {
+        throw new Error('La respuesta del servidor no contiene una lista válida de vehículos.')
+      }
+      setDriverVehicles(response.vehiculos)
+    } catch (error: unknown) {
+      setDriverVehicles([])
+      const message = error instanceof Error ? error.message : 'Error desconocido al cargar vehículos.'
+      setVehicleLoadError(message)
+      console.error('Error loading driver vehicles:', error)
+    } finally {
+      setVehiclesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadDriverVehicles()
+  }, [])
+
+  const onLoad = (mapInstance: google.maps.Map) => {
     setMap(mapInstance)
   }
 
-  const handleMapClick = (e: any) => {
+  const handleMapClick = (e: google.maps.MapMouseEvent) => {
     if (!selectingMode) return
 
     const lat = e.latLng.lat()
@@ -207,7 +255,7 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
   }
 
   // Calcular la ruta real usando Google Maps Directions API (OPCIONAL - no bloquea si falla)
-  const calculateRoute = async () => {
+  const calculateRoute = useCallback(async () => {
     // No ejecutar si Google Maps no está cargado o servicio no disponible
     if (!isLoaded || !window.google || !directionsServiceRef.current) {
       return
@@ -221,31 +269,29 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
           stopover: true,
         }))
 
-      const request: any = {
+      const request: google.maps.DirectionsRequest = {
         origin: { lat: formData.originLat, lng: formData.originLng },
         destination: { lat: formData.destinationLat, lng: formData.destinationLng },
         waypoints: waypoints,
         travelMode: window.google.maps.TravelMode.DRIVING,
       }
 
-      // Timeout para Google Maps API (5 segundos)
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise<never>((_, reject) => 
         setTimeout(() => reject(new Error('Google Maps timeout')), 5000)
       )
       const result = await Promise.race([
         directionsServiceRef.current.route(request),
-        timeoutPromise
-      ])
+        timeoutPromise,
+      ]) as google.maps.DirectionsResult & { status?: string }
       
       if (result && result.status === window.google.maps.DirectionsStatus.OK) {
         setDirectionsResult(result)
 
-        // Calcular distancia y duración totales
         let totalDist = 0
         let totalDur = 0
-        result.routes[0].legs.forEach((leg: any) => {
-          totalDist += leg.distance.value // metros
-          totalDur += leg.duration.value // segundos
+        result.routes[0].legs.forEach((leg) => {
+          totalDist += leg.distance.value
+          totalDur += leg.duration.value
         })
 
         const distKm = (totalDist / 1000).toFixed(2)
@@ -262,18 +308,17 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
         console.warn('Directions request failed:', result?.status)
         setDirectionsResult(null)
       }
-    } catch (error: any) {
-      // Google Maps errors no bloquean la creación de rutas
-      // Solo se usa para mostrar la línea en el mapa
-      console.warn('Google Maps visualization unavailable:', error?.message || error)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Google Maps unavailable'
+      console.warn('Google Maps visualization unavailable:', message)
       setDirectionsResult(null)
     }
-  }
+  }, [formData.destinationLat, formData.destinationLng, formData.originLat, formData.originLng, isLoaded, meetingPoints])
 
   // Recalcular ruta cuando cambien los puntos
   useEffect(() => {
     calculateRoute()
-  }, [meetingPoints, formData.originLat, formData.originLng, formData.destinationLat, formData.destinationLng])
+  }, [calculateRoute])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -282,6 +327,18 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
     setLoading(true)
 
     try {
+      if (vehiclesLoading) {
+        throw new Error('Espera mientras verificamos tus vehículos.')
+      }
+
+      if (vehicleLoadError) {
+        throw new Error(`No se pudieron cargar tus vehículos: ${vehicleLoadError}`)
+      }
+
+      if (driverVehicles.length === 0) {
+        throw new Error('Debes registrar al menos un vehículo antes de crear una ruta. Ve a “Mis vehículos”.')
+      }
+
       if (!formData.departure || formData.availableSeats < 1 || formData.availableSeats > 6) {
         throw new Error('Cupos deben ser entre 1 y 6')
       }
@@ -331,8 +388,14 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
         })
         setMeetingPoints([])
       }
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Error al crear ruta')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error
+        ? err.message
+        : 'Error al crear ruta'
+      const apiError = typeof err === 'object' && err !== null && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : undefined
+      setError(apiError || errorMessage || 'Error al crear ruta')
       console.error('Error:', err)
     } finally {
       setLoading(false)
