@@ -22,6 +22,18 @@ interface MenuItem {
   }
 }
 
+interface MenuPayload {
+  menu: MenuItem[]
+  total?: number
+}
+
+function hasMenuPayload(value: unknown): value is MenuPayload {
+  return typeof value === 'object'
+    && value !== null
+    && 'menu' in value
+    && Array.isArray(value.menu)
+}
+
 interface CurrentUser {
   id: string
   email: string
@@ -29,6 +41,12 @@ interface CurrentUser {
   documento: string
   id_perfil: number
   type: string
+}
+
+interface Perfil {
+  id: number
+  nombre: string
+  calificacion: number
 }
 
 interface DashboardSidebarProps {
@@ -63,7 +81,7 @@ const iconMap: { [key: string]: React.ComponentType<{ className: string }> } = {
 export function DashboardSidebar({ userType }: DashboardSidebarProps) {
   const router = useRouter()
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
-  const [perfiles, setPerfiles] = useState<any[]>([])
+  const [perfiles, setPerfiles] = useState<Perfil[]>([])
   const [rolActual, setRolActual] = useState<number | null>(null)
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
@@ -77,7 +95,10 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
     const rolActivoStr = localStorage.getItem('rolActivo')
     
     if (perfilesStr) {
-      setPerfiles(JSON.parse(perfilesStr))
+      const parsedPerfiles: unknown = JSON.parse(perfilesStr)
+      if (Array.isArray(parsedPerfiles)) {
+        setPerfiles(parsedPerfiles as Perfil[])
+      }
     }
     
     if (userStr) {
@@ -109,13 +130,12 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
 
   const fetchMenu = async (idPerfil: number) => {
     try {
-      const response = await apiClient.get<{ menu: MenuItem[] }>(API_ENDPOINTS.MENU_BY_PROFILE(idPerfil))
-      // El backend puede devolver la estructura { menu, total } directamente
-      // o envolverla en { success, message, data: { menu } }.
-      // Manejar ambas variantes de forma defensiva.
-      const menuFromWrapped = response?.data?.menu
-      const menuFromRaw = (response as any)?.menu
-      setMenuItems(menuFromWrapped || menuFromRaw || [])
+      const response = await apiClient.get<MenuPayload>(API_ENDPOINTS.MENU_BY_PROFILE(idPerfil))
+      const payload = response.data ?? response
+      if (!hasMenuPayload(payload)) {
+        throw new Error('La respuesta del servidor no contiene un menú válido.')
+      }
+      setMenuItems(payload.menu)
       setError(null)
     } catch (err) {
       console.error('Error fetching menu:', err)
@@ -128,7 +148,7 @@ export function DashboardSidebar({ userType }: DashboardSidebarProps) {
   const loadWalletBalance = async () => {
     try {
       const response = await apiClient.get<{ saldo: number }>(API_ENDPOINTS.WALLET_SALDO)
-      const saldo = response.data?.saldo ?? (response as any).saldo ?? null
+      const saldo = response.data?.saldo ?? null
       setWalletBalance(saldo)
     } catch (err) {
       console.error('Error loading wallet balance:', err)

@@ -62,7 +62,7 @@ export const validators = {
   },
 
   // Validador genérico de requerido
-  required: (value: any): ValidationResult => {
+  required: (value: unknown): ValidationResult => {
     if (value === null || value === undefined || value === '') {
       return { valid: false, error: 'Este campo es requerido' };
     }
@@ -71,31 +71,33 @@ export const validators = {
 };
 
 // Validadores específicos por tabla
-export const tableValidators = {
+type TableValidator = (value: unknown) => ValidationResult;
+
+export const tableValidators: Record<string, Record<string, TableValidator>> = {
   perfiles: {
-    nombre: (value: string) => validators.nombre(value, 1, 15),
-    descripcion: (value: string) => validators.descripcion(value, 1, 150),
+    nombre: (value) => validators.nombre(typeof value === 'string' ? value : '', 1, 15),
+    descripcion: (value) => validators.descripcion(typeof value === 'string' ? value : undefined, 1, 150),
   },
   marcas: {
-    nombre: (value: string) => validators.nombre(value, 1, 30),
+    nombre: (value) => validators.nombre(typeof value === 'string' ? value : '', 1, 30),
   },
   modelos: {
-    nombre: (value: string) => validators.nombre(value, 1, 50),
-    ano: (value: number | string) => validators.ano(value),
+    nombre: (value) => validators.nombre(typeof value === 'string' ? value : '', 1, 50),
+    ano: (value) => validators.ano(typeof value === 'number' || typeof value === 'string' ? value : ''),
   },
   colores: {
-    nombre: (value: string) => validators.nombre(value, 1, 30),
+    nombre: (value) => validators.nombre(typeof value === 'string' ? value : '', 1, 30),
   },
   estados: {
-    nombre: (value: string) => validators.nombre(value, 1, 20),
-    descripcion: (value: string) => validators.descripcion(value, 0, 50),
+    nombre: (value) => validators.nombre(typeof value === 'string' ? value : '', 1, 20),
+    descripcion: (value) => validators.descripcion(typeof value === 'string' ? value : undefined, 0, 50),
   },
   'metodos-pago': {
-    nombre: (value: string) => validators.nombre(value, 1, 30),
+    nombre: (value) => validators.nombre(typeof value === 'string' ? value : '', 1, 30),
   },
   'tipos-transaccion': {
-    nombre: (value: string) => validators.nombre(value, 1, 20),
-    descripcion: (value: string) => validators.descripcion(value, 0, 50),
+    nombre: (value) => validators.nombre(typeof value === 'string' ? value : '', 1, 20),
+    descripcion: (value) => validators.descripcion(typeof value === 'string' ? value : undefined, 0, 50),
   },
 };
 
@@ -104,16 +106,16 @@ export const tableValidators = {
  */
 export function validateFormData(
   tabla: string,
-  data: Record<string, any>
+  data: Record<string, unknown>
 ): Record<string, string> {
   const errors: Record<string, string> = {};
-  const tablaValidators = tableValidators[tabla as keyof typeof tableValidators];
+  const validatorsForTable = tableValidators[tabla];
 
-  if (!tablaValidators) {
+  if (!validatorsForTable) {
     return errors;
   }
 
-  for (const [field, validator] of Object.entries(tablaValidators)) {
+  for (const [field, validator] of Object.entries(validatorsForTable)) {
     const value = data[field];
     const result = validator(value);
     if (!result.valid && result.error) {

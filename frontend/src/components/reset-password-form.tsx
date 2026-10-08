@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import axios from "axios"
 import Link from "next/link"
@@ -31,7 +31,6 @@ export function ResetPasswordForm({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
-  const [tokenValid, setTokenValid] = useState<boolean | null>(null)
   const [formData, setFormData] = useState({
     password: "",
     confirmPassword: ""
@@ -40,14 +39,7 @@ export function ResetPasswordForm({
   const searchParams = useSearchParams()
   const token = searchParams.get("token")
 
-  useEffect(() => {
-    if (!token) {
-      setError("Link de recuperación inválido")
-      setTokenValid(false)
-    } else {
-      setTokenValid(true)
-    }
-  }, [token])
+  const tokenValid = Boolean(token)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
@@ -107,14 +99,18 @@ export function ResetPasswordForm({
       setTimeout(() => {
         router.push("/auth")
       }, 2000)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error:", err)
-      setError(err.response?.data?.message || "Error al cambiar la contraseña")
+      setError(
+        axios.isAxiosError<{ message?: string }>(err) && err.response?.data?.message
+          ? err.response.data.message
+          : "Error al cambiar la contraseña"
+      )
       setIsLoading(false)
     }
   }
 
-  if (tokenValid === false) {
+  if (!tokenValid) {
     return (
       <div className={cn("flex flex-col gap-6", className)} {...props}>
         <Card>

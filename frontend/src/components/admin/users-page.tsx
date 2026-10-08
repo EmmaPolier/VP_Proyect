@@ -11,18 +11,35 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Trash2, Pencil, AlertTriangle } from 'lucide-react';
+import { Plus, AlertTriangle } from 'lucide-react';
 import { useCrud } from '@/hooks/use-crud';
 import { DataTable, DataTableColumn } from '@/components/admin/data-table';
 import { UserForm } from '@/components/admin/user-form';
 import { API_ENDPOINTS } from '@/lib/api-constants';
 
+interface UserRecord extends Record<string, unknown> {
+  id: string | number;
+  nombre?: string;
+  email?: string;
+  telefono?: string;
+  idEstado?: number;
+  contraseña?: string;
+  perfiles?: number[];
+  documento?: string;
+  idPerfil?: number;
+}
+
+interface CatalogOption {
+  id: number;
+  nombre: string;
+}
+
 export function UsersPage() {
   const [showForm, setShowForm] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
-  const [perfiles, setPerfiles] = useState<any[]>([]);
-  const [estados, setEstados] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<UserRecord | null>(null);
+  const [perfiles, setPerfiles] = useState<CatalogOption[]>([]);
+  const [estados, setEstados] = useState<CatalogOption[]>([]);
 
   const {
     items: usuarios,
@@ -31,11 +48,10 @@ export function UsersPage() {
     createItem,
     updateItem,
     deleteItem,
-    fetchItems,
     page,
     setPage,
     totalPages,
-  } = useCrud(API_ENDPOINTS.USUARIOS);
+  } = useCrud<UserRecord>(API_ENDPOINTS.USUARIOS);
 
   // Cargar catálogos
   useEffect(() => {
@@ -44,14 +60,14 @@ export function UsersPage() {
         // Cargar perfiles
         const perfilesRes = await fetch(`${API_ENDPOINTS.PERFILES}?pageSize=100`);
         if (perfilesRes.ok) {
-          const data = await perfilesRes.json();
+          const data = await perfilesRes.json() as { data?: CatalogOption[] };
           setPerfiles(data.data || []);
         }
 
         // Cargar estados
         const estadosRes = await fetch(`${API_ENDPOINTS.ESTADOS('usuario')}?pageSize=100`);
         if (estadosRes.ok) {
-          const data = await estadosRes.json();
+          const data = await estadosRes.json() as { data?: CatalogOption[] };
           setEstados(data.data || []);
         }
       } catch (error) {
@@ -62,25 +78,39 @@ export function UsersPage() {
     loadCatalogs();
   }, []);
 
-  const handleCreate = async (formData: any) => {
+  const handleCreate = async (formData: {
+    nombre: string;
+    email: string;
+    telefono: string;
+    contraseña: string;
+    idEstado: string | number;
+    perfiles: number[];
+  }) => {
     await createItem({
       nombre: formData.nombre,
       email: formData.email,
       telefono: formData.telefono,
       contraseña: formData.contraseña,
-      idEstado: parseInt(formData.idEstado),
+      idEstado: Number(formData.idEstado),
       perfiles: formData.perfiles,
     });
     setShowForm(false);
   };
 
-  const handleUpdate = async (formData: any) => {
+  const handleUpdate = async (formData: {
+    nombre: string;
+    email: string;
+    telefono: string;
+    contraseña: string;
+    idEstado: string | number;
+    perfiles: number[];
+  }) => {
     if (!selectedUser) return;
     await updateItem(selectedUser.id, {
       nombre: formData.nombre,
       email: formData.email,
       telefono: formData.telefono,
-      idEstado: parseInt(formData.idEstado),
+      idEstado: Number(formData.idEstado),
       perfiles: formData.perfiles,
     });
     setSelectedUser(null);
@@ -94,11 +124,11 @@ export function UsersPage() {
     }
   };
 
-  const columns: DataTableColumn[] = [
-    { key: 'nombre', label: 'Nombre' },
-    { key: 'email', label: 'Email' },
-    { key: 'telefono', label: 'Teléfono' },
-    { key: 'idEstado', label: 'Estado' },
+  const columns: DataTableColumn<UserRecord>[] = [
+    { header: 'Nombre', accessor: 'nombre' },
+    { header: 'Email', accessor: 'email' },
+    { header: 'Teléfono', accessor: 'telefono' },
+    { header: 'Estado', accessor: 'idEstado' },
   ];
 
   return (
@@ -122,7 +152,7 @@ export function UsersPage() {
           <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
           <div>
             <p className="font-semibold text-red-900">Error</p>
-            <p className="text-red-700 text-sm">{error}</p>
+            <p className="text-red-700 text-sm">{error.message}</p>
           </div>
         </div>
       )}
@@ -136,7 +166,7 @@ export function UsersPage() {
           setShowForm(true);
         }}
         onDelete={(user) => setDeleteConfirm(user)}
-        currentPage={page}
+        page={page}
         totalPages={totalPages}
         onPageChange={setPage}
       />

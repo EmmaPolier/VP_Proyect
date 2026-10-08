@@ -82,9 +82,9 @@ export function DriverProfile() {
       } else {
         setError("No se encontraron datos de perfil")
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[DRIVER-PROFILE] Error fetching profile:", err)
-      setError(err?.message || "Error al cargar el perfil")
+      setError(err instanceof Error ? err.message : "Error al cargar el perfil")
     } finally {
       setLoading(false)
     }
@@ -106,8 +106,8 @@ export function DriverProfile() {
       await fetchProfile()
 
       setTimeout(() => setSuccessMessage(""), 3000)
-    } catch (err: any) {
-      setError(err?.message || "Error al actualizar el perfil")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al actualizar el perfil")
     } finally {
       setEditingSubmitting(false)
     }
@@ -147,8 +147,8 @@ export function DriverProfile() {
       })
 
       setTimeout(() => setSuccessMessage(""), 3000)
-    } catch (err: any) {
-      setError(err?.message || "Error al cambiar la contraseña")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al cambiar la contraseña")
     } finally {
       setPasswordSubmitting(false)
     }

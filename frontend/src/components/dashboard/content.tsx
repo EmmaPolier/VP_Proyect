@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -16,12 +16,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Star, Plus } from "lucide-react"
-import { GoogleMap, Marker, useLoadScript } from "@react-google-maps/api"
+import { useLoadScript, type Libraries } from "@react-google-maps/api"
 import { apiClient } from "@/lib/api-client"
 import { API_ENDPOINTS } from "@/lib/api-constants"
 import RatingModal from "../rating-modal"
 import CreateRouteForm from "./driver/create-route-form"
-import ViewRoutesMap from "./passenger/view-routes-map"
 import { VehiclesList } from "./driver/vehicles-list"
 import { DriverTravelHistory } from "./driver/driver-travel-history"
 import { DriverWallet } from "./driver/driver-wallet"
@@ -116,7 +115,7 @@ const POLITECNICO_DEFAULT = {
 }
 
 // Keep libraries as a static constant to avoid re-creating the array on each render
-const GOOGLE_MAPS_LIBRARIES: any = ['places']
+const GOOGLE_MAPS_LIBRARIES: Libraries = ['places']
 
 export function DashboardContent({ userType = "passenger" }: DashboardContentProps) {
   const isDriver = userType === "driver"
@@ -233,16 +232,10 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
     ],
   })
 
-  const { isLoaded, loadError } = useLoadScript({
+  useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries: GOOGLE_MAPS_LIBRARIES as any,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   })
-
-  const mapContainerStyle = { width: '100%', height: '100%' }
-  const mapCenter = {
-    lat: newRouteData.originLat,
-    lng: newRouteData.originLng,
-  }
 
   // Return the current user's solicitud for a given route, if any (excluding canceled)
   const getMyRequestForRoute = (routeId: number) => {
@@ -265,8 +258,8 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
 
       const response = await apiClient.get<RouteSearchResult[]>(API_ENDPOINTS.SEARCH_ROUTES, params)
       setSearchResults(response.data ?? [])
-    } catch (error: any) {
-      setSearchError(error.message || "No se pudo cargar las rutas")
+    } catch (error: unknown) {
+      setSearchError(error instanceof Error ? error.message : "No se pudo cargar las rutas")
     } finally {
       setSearchLoading(false)
     }
@@ -289,10 +282,9 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
 
       setRequestMessage(`✅ ${response.message || "Solicitud enviada correctamente. Espera la respuesta del conductor."}`)
       await loadMyRequests()
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Manejo específico de errores
-      const status = error?.response?.status
-      const message = error.message || "No se pudo enviar la solicitud"
+      const message = error instanceof Error ? error.message : "No se pudo enviar la solicitud"
       
       if (message.includes('Saldo insuficiente')) {
         setRequestMessage(`❌ Fondos insuficientes en tu cartera. Recargue saldo para poder solicitar esta ruta.`)
@@ -317,8 +309,8 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
       setMyRequests(prev => prev.map(r => r.id === solicitudId ? { ...r, status: 'CANCELADA' } : r))
       // Recargar datos del servidor después de 1 segundo
       setTimeout(() => loadMyRequests(), 1000)
-    } catch (error: any) {
-      const message = error.message || 'No se pudo cancelar la solicitud'
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'No se pudo cancelar la solicitud'
       
       if (message.includes('en curso') || message.includes('completada')) {
         setRequestMessage(`❌ No puedes cancelar una solicitud que ya está en curso o completada.`)
@@ -358,8 +350,8 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
         localStorage.removeItem('perfiles')
         router.push('/login')
       }, 2000)
-    } catch (error: any) {
-      setDeleteAccountMessage('❌ ' + (error.message || 'No se pudo eliminar la cuenta'))
+    } catch (error: unknown) {
+      setDeleteAccountMessage('❌ ' + (error instanceof Error ? error.message : 'No se pudo eliminar la cuenta'))
     } finally {
       setDeleteAccountLoading(false)
     }
@@ -472,8 +464,8 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
         await loadPassengerDashboard()
       }
       await loadRatingData(dashboardUser.documento)
-    } catch (error: any) {
-      const errorMsg = error.message || 'No se pudo enviar la calificación'
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : 'No se pudo enviar la calificación'
       setRatingMessage(errorMsg)
     } finally {
       setRatingLoading(false)
@@ -561,8 +553,8 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
       await loadDriverRequests()
       await loadDriverDashboard()
       await loadDriverRoutes()
-    } catch (error: any) {
-      const message = error.message || 'No se pudo actualizar la solicitud'
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'No se pudo actualizar la solicitud'
       
       // Manejo específico de errores
       if (message.includes('No hay cupos')) {
@@ -622,7 +614,7 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
     setWalletLoading(true)
     try {
       const response = await apiClient.get<{ saldo: number }>(API_ENDPOINTS.WALLET_SALDO)
-      const saldo = response.data?.saldo ?? (response as any).saldo ?? 0
+      const saldo = response.data?.saldo ?? 0
       setWalletBalance(saldo)
     } catch (error) {
       console.error('Error cargando saldo de cartera:', error)
@@ -636,7 +628,7 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
     setWalletHistoryLoading(true)
     try {
       const response = await apiClient.get<{ historial: WalletTransaction[] }>(API_ENDPOINTS.WALLET_HISTORIAL)
-      const historial = response.data?.historial ?? (response as any).historial ?? []
+      const historial = response.data?.historial ?? []
       setWalletHistory(historial)
     } catch (error) {
       console.error('Error cargando historial de cartera:', error)
@@ -658,13 +650,13 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
       const response = await apiClient.post<{ saldo: number }>(API_ENDPOINTS.WALLET_RECARGA, {
         monto: walletReloadAmount,
       })
-      const saldo = response.data?.saldo ?? (response as any).data?.saldo ?? (response as any).saldo ?? 0
+      const saldo = response.data?.saldo ?? 0
       setWalletBalance(saldo)
       setWalletMessage(response.message || 'Recarga ficticia realizada con éxito')
       setWalletReloadAmount(0)
       await loadWalletHistory()
-    } catch (error: any) {
-      setWalletMessage(error.message || 'No se pudo recargar la cartera')
+    } catch (error: unknown) {
+      setWalletMessage(error instanceof Error ? error.message : 'No se pudo recargar la cartera')
     } finally {
       setWalletReloading(false)
     }
@@ -718,7 +710,7 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
     setActiveMapTarget(target)
   }
 
-  const handleMapClick = (event: any) => {
+  const handleMapClick = (event: google.maps.MapMouseEvent) => {
     if (!event.latLng) {
       return
     }
@@ -807,8 +799,8 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
       resetNewRouteForm()
       await loadDriverRoutes()
       await loadDriverDashboard()
-    } catch (error: any) {
-      setRequestMessage(error.message || 'No se pudo guardar la ruta')
+    } catch (error: unknown) {
+      setRequestMessage(error instanceof Error ? error.message : 'No se pudo guardar la ruta')
     } finally {
       setRouteSaving(false)
     }
@@ -850,17 +842,6 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
       loadRatingData(dashboardUser.documento)
     }
   }, [dashboardUser])
-
-  useEffect(() => {
-    if (ratingModalOpen) {
-      try {
-        // eslint-disable-next-line no-alert
-        alert('debug: ratingModalOpen is true (useEffect)')
-      } catch (e) {
-        // ignore
-      }
-    }
-  }, [ratingModalOpen])
 
   const ratingModalElement = (
     <RatingModal

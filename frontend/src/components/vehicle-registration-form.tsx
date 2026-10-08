@@ -103,7 +103,7 @@ export function VehicleRegistrationForm({
       setBrands(brandsRes.data?.brands || [])
       setColors(colorsRes.data?.colors || [])
       setIsLoadingData(false)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error cargando catálogos:", err)
       setError("Error cargando marcas y colores")
       setIsLoadingData(false)
@@ -127,7 +127,7 @@ export function VehicleRegistrationForm({
     try {
       const response = await apiClient.get<{ models: Model[] }>(`${API_URL}/vehicles/models`, { brandId: parseInt(brandId) })
       setModels(response.data?.models || [])
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error cargando modelos:", err)
       setError("Error al cargar modelos disponibles")
     }
@@ -182,7 +182,7 @@ export function VehicleRegistrationForm({
       localStorage.removeItem("vehicleRegistrationContext")
       localStorage.removeItem("pendingVerification")
       router.push("/login")
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error en registro:", err)
       if (err instanceof Error && err.message) {
         setError(err.message)

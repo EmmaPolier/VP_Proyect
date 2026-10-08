@@ -8,6 +8,12 @@ interface Perfil {
   calificacion: number
 }
 
+interface Usuario {
+  documento: string
+  email: string
+  nombres: string
+}
+
 interface AuthContextType {
   perfiles: Perfil[]
   rolActual: number
@@ -19,7 +25,7 @@ interface AuthContextType {
   token: string | null
   setPerfiles: (perfiles: Perfil[]) => void
   setRolActual: (rol: number) => void
-  setUsuario: (usuario: any) => void
+  setUsuario: (usuario: Usuario | null) => void
   setToken: (token: string | null) => void
   cargarDatos: () => void
 }
@@ -29,7 +35,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [perfiles, setPerfiles] = useState<Perfil[]>([])
   const [rolActual, setRolActual] = useState<number>(1)
-  const [usuario, setUsuario] = useState<any>(null)
+  const [usuario, setUsuario] = useState<Usuario | null>(null)
   const [token, setToken] = useState<string | null>(null)
 
   const cargarDatos = () => {
@@ -43,14 +49,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (savedRol) setRolActual(parseInt(savedRol))
     if (savedPerfiles) {
       try {
-        setPerfiles(JSON.parse(savedPerfiles))
+        const parsedPerfiles: unknown = JSON.parse(savedPerfiles)
+        if (Array.isArray(parsedPerfiles)) setPerfiles(parsedPerfiles as Perfil[])
       } catch (e) {
         console.error("Error cargando perfiles:", e)
       }
     }
     if (savedUsuario) {
       try {
-        setUsuario(JSON.parse(savedUsuario))
+        setUsuario(JSON.parse(savedUsuario) as Usuario)
       } catch (e) {
         console.error("Error cargando usuario:", e)
       }
@@ -58,6 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    // Hydrate the context from browser storage after client mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     cargarDatos()
   }, [])
 

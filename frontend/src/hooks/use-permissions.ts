@@ -20,7 +20,6 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
 
 interface CurrentUser {
   id_perfil: number
-  [key: string]: any
 }
 
 export function usePermissions() {

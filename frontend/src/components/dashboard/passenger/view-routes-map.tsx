@@ -33,6 +33,10 @@ interface ViewRoutesMapProps {
   onRouteSelected?: (route: Route) => void
 }
 
+interface RoutesResponse {
+  routes: Route[]
+}
+
 const containerStyle = {
   width: '100%',
   height: '600px',
@@ -53,7 +57,7 @@ export default function ViewRoutesMap({ onRouteSelected }: ViewRoutesMapProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [routes, setRoutes] = useState<Route[]>([])
-  const [map, setMap] = useState<any>(null)
+  const [map, setMap] = useState<google.maps.Map | null>(null)
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null)
 
@@ -63,20 +67,18 @@ export default function ViewRoutesMap({ onRouteSelected }: ViewRoutesMapProps) {
         setLoading(true)
         setError(null)
         
-        const response = await apiClient.get('/routes', {
-          params: {
-            origin: 'Medellín',
-            destination: 'Medellín',
-          }
+        const response = await apiClient.get<RoutesResponse>('/routes', {
+          origin: 'Medellín',
+          destination: 'Medellín',
         })
 
-        if (response.data?.data?.routes) {
-          setRoutes(response.data.data.routes)
+        if (response.data?.routes) {
+          setRoutes(response.data.routes)
         } else {
           setRoutes([])
         }
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'Error al cargar rutas')
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Error al cargar rutas')
         console.error('Error:', err)
       } finally {
         setLoading(false)
@@ -86,7 +88,7 @@ export default function ViewRoutesMap({ onRouteSelected }: ViewRoutesMapProps) {
     fetchRoutes()
   }, [])
 
-  const onLoad = (mapInstance: any) => {
+  const onLoad = (mapInstance: google.maps.Map) => {
     setMap(mapInstance)
     if (routes.length > 0) {
       fitBoundsToRoutes()
@@ -306,10 +308,4 @@ export default function ViewRoutesMap({ onRouteSelected }: ViewRoutesMapProps) {
       </Card>
     </div>
   )
-}
-
-declare global {
-  interface Window {
-    google: any
-  }
 }

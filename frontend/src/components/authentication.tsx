@@ -13,7 +13,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
-  Field,
   FieldDescription,
 } from "@/components/ui/field"
 import {
@@ -44,7 +43,7 @@ export function InputOTPForm() {
       const parsed = JSON.parse(pending)
       setPendingEmail(parsed.email)
       setPendingType(parsed.type)
-    } catch (error) {
+    } catch {
       setError("Error al leer la información de verificación.")
     }
   }, [])
@@ -97,9 +96,9 @@ export function InputOTPForm() {
         localStorage.removeItem("pendingVerification")
         router.push("/dashboard")
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Verify error:", err)
-      if (err.response?.data?.message) {
+      if (axios.isAxiosError<{ message?: string }>(err) && err.response?.data?.message) {
         setError(err.response.data.message)
       } else {
         setError("Error al verificar el código. Intenta de nuevo.")
@@ -125,7 +124,7 @@ export function InputOTPForm() {
                 maxLength={6}
                 id="otp-verification"
                 value={code}
-                onChange={(value: any) => setCode(String(value || ""))}
+                onChange={(value: string) => setCode(value)}
               >
                 <InputOTPGroup className="gap-2 *:data-[slot=input-otp-slot]:h-12 *:data-[slot=input-otp-slot]:w-11 *:data-[slot=input-otp-slot]:rounded-lg *:data-[slot=input-otp-slot]:text-xl *:data-[slot=input-otp-slot]:font-semibold *:data-[slot=input-otp-slot]:border-2">
                   <InputOTPSlot index={0} />

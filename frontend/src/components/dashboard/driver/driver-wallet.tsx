@@ -53,9 +53,9 @@ export function DriverWallet() {
 
       setSaldo(saldoRes.data?.saldo || 0)
       setHistorial(historialRes.data?.historial || [])
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error fetching wallet data:", err)
-      setError(err?.message || "Error al cargar cartera")
+      setError(err instanceof Error ? err.message : "Error al cargar cartera")
     } finally {
       setLoading(false)
     }
@@ -75,7 +75,7 @@ export function DriverWallet() {
         return
       }
 
-      const response = await apiClient.post(API_ENDPOINTS.WALLET_RECARGA, {
+      const response = await apiClient.post<Saldo>(API_ENDPOINTS.WALLET_RECARGA, {
         monto,
         tipoTransaccionId: 1, // 1 = RECARGA
       })
@@ -89,9 +89,9 @@ export function DriverWallet() {
 
       // Limpiar mensaje después de 3 segundos
       setTimeout(() => setSuccessMessage(""), 3000)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error processing recharge:", err)
-      setError(err?.message || "Error al procesar la recarga")
+      setError(err instanceof Error ? err.message : "Error al procesar la recarga")
     } finally {
       setSubmitting(false)
     }

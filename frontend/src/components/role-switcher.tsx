@@ -72,12 +72,12 @@ export function RoleSwitcher({
         // Recargar para actualizar la UI
         window.location.reload()
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error al cambiar rol:", err)
       
-      if (err.response?.data?.error) {
+      if (axios.isAxiosError<{ error?: string }>(err) && err.response?.data?.error) {
         setError(err.response.data.error)
-      } else if (err.code === "ERR_NETWORK") {
+      } else if (axios.isAxiosError(err) && err.code === "ERR_NETWORK") {
         setError("Error de conexión con el servidor")
       } else {
         setError("Error al cambiar de rol")

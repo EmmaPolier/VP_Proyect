@@ -27,6 +27,19 @@ interface CatalogPageProps {
   tabla: string;
 }
 
+interface CatalogRecord extends Record<string, unknown> {
+  id?: string | number;
+  documento?: string;
+  idPerfil?: number;
+  perfil?: string;
+}
+
+function getCompositeId(value: string | number | undefined) {
+  if (typeof value !== 'string') return null;
+  const parts = value.split('_').map(Number);
+  return parts.length === 2 && parts.every(Number.isSafeInteger) ? parts : null;
+}
+
 export function CatalogPage({ tabla }: CatalogPageProps) {
   const config = CATALOG_CONFIG[tabla as keyof typeof CATALOG_CONFIG] as {
     label: string;
@@ -38,33 +51,27 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
     requiredFields?: string[];
     tipoOptions?: Array<{ label: string; value: string }>;
     defaultTipo?: string;
-  };
+  } | undefined;
 
-  if (!config) {
-    return (
-      <div className="p-8 text-center">
-        <p className="text-red-600">Catálogo no encontrado: {tabla}</p>
-      </div>
-    );
-  }
-
-  const isEstadoCatalog = tabla === 'estados' && Array.isArray(config.tipoOptions);
+  const isEstadoCatalog = tabla === 'estados' && Array.isArray(config?.tipoOptions);
   const [selectedTipo, setSelectedTipo] = useState(
-    isEstadoCatalog ? config.defaultTipo || ESTADO_TIPOS.USUARIO : ''
+    isEstadoCatalog ? config?.defaultTipo || ESTADO_TIPOS.USUARIO : ''
   );
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<any | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<any | null>(null);
+  const [selectedItem, setSelectedItem] = useState<CatalogRecord | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<CatalogRecord | null>(null);
   
   // Estados para agregar perfil a usuario existente
   const [addPerfilModalOpen, setAddPerfilModalOpen] = useState(false);
-  const [selectedUserForPerfil, setSelectedUserForPerfil] = useState<any | null>(null);
-  const [allProfiles, setAllProfiles] = useState<any[]>([]);
+  const [selectedUserForPerfil, setSelectedUserForPerfil] = useState<CatalogRecord | null>(null);
+  const [allProfiles, setAllProfiles] = useState<Array<{ id: number; nombre: string }>>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(false);
 
-  const endpoint = isEstadoCatalog
-    ? (config.endpoint as (tipo: string) => string)(selectedTipo)
-    : (config.endpoint as string);
+  const endpoint = !config
+    ? ''
+    : isEstadoCatalog
+      ? (config.endpoint as (tipo: string) => string)(selectedTipo)
+      : (config.endpoint as string);
 
   const crudOptions = useMemo(
     () => ({
@@ -93,27 +100,22 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
     updateItem,
     deleteItem,
     setPage,
-  } = useCrud(endpoint, crudOptions);
+  } = useCrud<CatalogRecord>(endpoint, crudOptions);
 
   // Cargar datos al montar y cuando cambie el tipo de estado
   useEffect(() => {
+    if (!config) return;
     fetchItems(1);
-  }, [fetchItems, selectedTipo]);
+  }, [config, fetchItems, selectedTipo]);
 
   // Cargar perfiles disponibles cuando se abre el modal de agregar perfil
-  useEffect(() => {
-    if (tabla === 'usuarios' && addPerfilModalOpen && !allProfiles.length) {
-      loadAvailableProfiles();
-    }
-  }, [addPerfilModalOpen, tabla, allProfiles.length]);
-
   // Función para cargar perfiles disponibles
   const loadAvailableProfiles = async () => {
     try {
       setLoadingProfiles(true); 
-      const response = await apiClient.get(API_ENDPOINTS.PERFILES);
+      const response = await apiClient.get<Array<{ id: number; nombre: string }>>(API_ENDPOINTS.PERFILES);
       if (response.success) {
-        setAllProfiles(response.data);
+        setAllProfiles(response.data ?? []);
       }
     } catch (err) {
       console.error('Error al cargar perfiles:', err);
@@ -121,6 +123,20 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
       setLoadingProfiles(false);
     }
   };
+
+  useEffect(() => {
+    if (tabla === 'usuarios' && addPerfilModalOpen && !allProfiles.length) {
+      loadAvailableProfiles();
+    }
+  }, [addPerfilModalOpen, tabla, allProfiles.length]);
+
+  if (!config) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-red-600">Catálogo no encontrado: {tabla}</p>
+      </div>
+    );
+  }
 
   const visibleFields = config.fields.filter((field) => {
     if (!isEstadoCatalog) {
@@ -147,11 +163,11 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
   });
 
   // Definir columnas dinámicamente
-  const columns: DataTableColumn<any>[] = visibleFields.map((field) => ({
+  const columns: DataTableColumn<CatalogRecord>[] = visibleFields.map((field) => ({
     header:
       field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1'),
     accessor: field,
-    render: (value) => value || '-',
+    render: (value) => value === null || value === undefined || value === '' ? '-' : String(value),
   }));
 
   const handleCreateClick = () => {
@@ -159,17 +175,17 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
     setModalOpen(true);
   };
 
-  const handleEditClick = (item: any) => {
+  const handleEditClick = (item: CatalogRecord) => {
     setSelectedItem(item);
     setModalOpen(true);
   };
 
-  const handleDeleteClick = (item: any) => {
+  const handleDeleteClick = (item: CatalogRecord) => {
     setDeleteConfirm(item);
   };
 
   // Función para abrir el modal de agregar perfil
-  const handleAddPerfilClick = async (item: any) => {
+  const handleAddPerfilClick = async (item: CatalogRecord) => {
     setSelectedUserForPerfil(item);
     setAddPerfilModalOpen(true);
   };
@@ -196,7 +212,7 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
     }
   };
 
-  const handleModalSubmit = async (data: any) => {
+  const handleModalSubmit = async (data: Record<string, unknown>) => {
     try {
       // Limpiar datos vacíos
       let cleanedData = Object.fromEntries(
@@ -222,10 +238,12 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
       // Manejo especial para permisos (tabla con dos IDs)
       if (tabla === 'permisos' && selectedItem?.id) {
         // El ID es formato "idMenu_idPerfil", extraer ambos
-        const [idMenu, idPerfilOriginal] = selectedItem.id.split('_').map(Number);
+        const compositeId = getCompositeId(selectedItem.id);
+        if (!compositeId) throw new Error('Identificador de permiso inválido');
+        const [idMenu, idPerfilOriginal] = compositeId;
         
         // Preparar datos para el backend
-        const permisoData: any = { ...cleanedData };
+        const permisoData: Record<string, unknown> = { ...cleanedData };
         
         // Si el usuario cambió el idPerfil, enviarlo como newIdPerfil
         if (cleanedData.idPerfil && cleanedData.idPerfil !== idPerfilOriginal) {
@@ -261,7 +279,9 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
     if (deleteConfirm?.id) {
       // Manejo especial para permisos (tabla con dos IDs)
       if (tabla === 'permisos') {
-        const [idMenu, idPerfil] = deleteConfirm.id.split('_').map(Number);
+        const compositeId = getCompositeId(deleteConfirm.id);
+        if (!compositeId) throw new Error('Identificador de permiso inválido');
+        const [idMenu, idPerfil] = compositeId;
         const response = await apiClient.delete(`${endpoint}/${idMenu}/${idPerfil}`);
         if (response.success) {
           setDeleteConfirm(null);
@@ -366,7 +386,7 @@ export function CatalogPage({ tabla }: CatalogPageProps) {
       <CRUDModal
         open={modalOpen}
         title={selectedItem ? `Editar ${config.label}` : `Nuevo ${config.label}`}
-        initialData={selectedItem}
+        initialData={selectedItem ?? undefined}
         fields={formFields.map((field) => {
             // Mapear tipos a los soportados por CRUDModal
             let type: 'text' | 'number' | 'email' | 'textarea' | 'select' | 'checkbox' = 'text';

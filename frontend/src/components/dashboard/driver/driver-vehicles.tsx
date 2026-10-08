@@ -66,9 +66,9 @@ export function DriverVehicles() {
       } else {
         setError(response.data?.message || "No se pudieron cargar los vehículos")
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error fetching vehicles:", err)
-      setError(err.response?.data?.message || "Error al cargar vehículos")
+      setError(err instanceof Error ? err.message : "Error al cargar vehículos")
     } finally {
       setLoading(false)
     }
@@ -113,8 +113,8 @@ export function DriverVehicles() {
 
       // Limpiar mensaje después de 3 segundos
       setTimeout(() => setSuccessMessage(""), 3000)
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Error al registrar vehículo")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al registrar vehículo")
     } finally {
       setSubmitting(false)
     }
@@ -138,8 +138,8 @@ export function DriverVehicles() {
 
       // Limpiar mensaje después de 3 segundos
       setTimeout(() => setSuccessMessage(""), 3000)
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Error al eliminar vehículo")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al eliminar vehículo")
     } finally {
       setDeleteLoading(null)
     }

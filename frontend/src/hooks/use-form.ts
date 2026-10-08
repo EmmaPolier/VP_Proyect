@@ -19,16 +19,16 @@ interface UseFormReturn<T> {
   loading: boolean;
   
   handleChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  handleBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  handleBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => Promise<void>;
-  setFieldValue: (field: keyof T, value: any) => void;
+  setFieldValue: (field: keyof T, value: unknown) => void;
   setFieldError: (field: keyof T, error: string) => void;
   setValues: (values: T) => void;
   reset: () => void;
   validateField: (field: keyof T) => string;
 }
 
-export function useForm<T extends Record<string, any>>(
+export function useForm<T extends Record<string, unknown>>(
   options: UseFormOptions<T>
 ): UseFormReturn<T> {
   const [values, setValues] = useState<T>(options.initialValues);
@@ -50,7 +50,7 @@ export function useForm<T extends Record<string, any>>(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const { name, value, type } = e.target;
       
-      let newValue: any = value;
+      let newValue: string | number = value;
       if (type === 'number') {
         newValue = value === '' ? '' : Number(value);
       }
@@ -77,7 +77,7 @@ export function useForm<T extends Record<string, any>>(
   );
 
   const handleBlur = useCallback(
-    (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const { name } = e.target;
       
       setTouched(prev => ({
@@ -126,7 +126,7 @@ export function useForm<T extends Record<string, any>>(
     [values, options]
   );
 
-  const setFieldValue = useCallback((field: keyof T, value: any) => {
+  const setFieldValue = useCallback((field: keyof T, value: unknown) => {
     setValues(prev => ({
       ...prev,
       [field]: value,

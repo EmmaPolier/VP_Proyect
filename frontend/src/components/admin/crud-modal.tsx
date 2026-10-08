@@ -4,7 +4,7 @@
  * Modal para crear/editar registros CRUD
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -38,10 +38,10 @@ interface CRUDModalProps {
     required?: boolean;
     placeholder?: string;
   }>;
-  initialData?: Record<string, any>;
+  initialData?: Record<string, unknown>;
   tabla: string;
   loading?: boolean;
-  onSubmit: (data: Record<string, any>) => Promise<void>;
+  onSubmit: (data: Record<string, unknown>) => Promise<void>;
   onClose: () => void;
 }
 
@@ -59,17 +59,13 @@ export function CRUDModal({
   const [loadingBrands, setLoadingBrands] = useState(false);
 
   // Crear valores iniciales basados en fields
-  const createEmptyValues = () => {
-    return fields.reduce((acc, f) => ({ ...acc, [f.name]: '' }), {});
-  };
+  const initialValues = useMemo(
+    () => initialData ?? fields.reduce<Record<string, unknown>>((acc, field) => ({ ...acc, [field.name]: '' }), {}),
+    [fields, initialData]
+  );
 
-  // Usar initialData si está disponible, sino usar valores vacíos
-  const getInitialValues = () => {
-    return initialData || createEmptyValues();
-  };
-
-  const form = useForm({
-    initialValues: getInitialValues(),
+  const form = useForm<Record<string, unknown>>({
+    initialValues,
     validate: (values) => {
       return validateFormData(tabla, values);
     },
@@ -79,6 +75,7 @@ export function CRUDModal({
       onClose();
     },
   });
+  const { setValues: setFormValues } = form;
 
   // Cargar marcas si hay un campo select de marca
   useEffect(() => {
@@ -90,10 +87,9 @@ export function CRUDModal({
   // Actualizar los valores del formulario cuando cambia initialData o se abre el modal
   useEffect(() => {
     if (open) {
-      const newInitialValues = getInitialValues();
-      form.setValues(newInitialValues);
+      setFormValues(initialValues);
     }
-  }, [initialData, open]);
+  }, [initialValues, open, setFormValues]);
 
   const loadBrands = async () => {
     setLoadingBrands(true);
@@ -143,7 +139,7 @@ export function CRUDModal({
                   <select
                     id={field.name}
                     name={field.name}
-                    value={form.values[field.name as keyof typeof form.values] || ''}
+                    value={String(form.values[field.name] ?? '')}
                     onChange={(e) =>
                       form.setFieldValue(field.name, e.target.value)
                     }
@@ -167,7 +163,7 @@ export function CRUDModal({
                       id={field.name}
                       name={field.name}
                       type="checkbox"
-                      checked={form.values[field.name as keyof typeof form.values] === true || form.values[field.name as keyof typeof form.values] === 'S'}
+                      checked={form.values[field.name] === true || form.values[field.name] === 'S'}
                       onChange={(e) =>
                         form.setFieldValue(field.name, e.target.checked)
                       }
@@ -185,7 +181,7 @@ export function CRUDModal({
                   <textarea
                     id={field.name}
                     name={field.name}
-                    value={form.values[field.name as keyof typeof form.values] || ''}
+                    value={String(form.values[field.name] ?? '')}
                     onChange={(e) =>
                       form.setFieldValue(field.name, e.target.value)
                     }
@@ -202,7 +198,7 @@ export function CRUDModal({
                     id={field.name}
                     name={field.name}
                     type={field.type || 'text'}
-                    value={form.values[field.name as keyof typeof form.values] || ''}
+                    value={String(form.values[field.name] ?? '')}
                     onChange={form.handleChange}
                     onBlur={form.handleBlur}
                     placeholder={field.placeholder}

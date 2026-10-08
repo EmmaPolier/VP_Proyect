@@ -13,15 +13,28 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { validators } from '@/lib/validators';
+interface UserFormData {
+  [key: string]: unknown;
+  nombre: string;
+  email: string;
+  telefono: string;
+  contraseña: string;
+  idEstado: string | number;
+  perfiles: number[];
+}
+
+interface CatalogOption {
+  id: number;
+  nombre: string;
+}
 
 interface UserFormProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => Promise<void>;
-  initialData?: any;
-  perfiles: { id: number; nombre: string }[];
-  estados: { id: number; nombre: string }[];
+  onSubmit: (data: UserFormData) => Promise<void>;
+  initialData?: (Partial<UserFormData> & { id?: string | number }) | null;
+  perfiles: CatalogOption[];
+  estados: CatalogOption[];
   isLoading?: boolean;
 }
 
@@ -48,13 +61,14 @@ export function UserForm({
 
   useEffect(() => {
     if (initialData) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({
         nombre: initialData.nombre || '',
         email: initialData.email || '',
         telefono: initialData.telefono || '',
         contraseña: '',
-        idEstado: initialData.idEstado || '',
-        perfiles: initialData.perfiles?.map((p: any) => p.id) || [],
+        idEstado: String(initialData.idEstado || ''),
+        perfiles: Array.isArray(initialData.perfiles) ? initialData.perfiles : [],
       });
     } else {
       setFormData({
@@ -70,7 +84,7 @@ export function UserForm({
     setTouched({});
   }, [initialData, isOpen]);
 
-  const validateField = (name: string, value: any) => {
+  const validateField = (name: string, value: string) => {
     switch (name) {
       case 'nombre':
         if (!value || value.trim().length === 0) return 'El nombre es requerido';
@@ -86,7 +100,7 @@ export function UserForm({
         }
         break;
       case 'contraseña':
-        if (!this.initialData && !value) {
+        if (!initialData && !value) {
           return 'La contraseña es requerida';
         }
         if (value && value.length < 8) {
@@ -134,7 +148,8 @@ export function UserForm({
     const newErrors: Record<string, string> = {};
     Object.keys(formData).forEach(key => {
       if (key !== 'perfiles') {
-        const error = validateField(key, formData[key as keyof typeof formData]);
+        const value = formData[key as keyof typeof formData];
+        const error = validateField(key, typeof value === 'string' ? value : '');
         if (error) newErrors[key] = error;
       }
     });

@@ -74,8 +74,8 @@ export function PassengerSettings() {
         localStorage.removeItem('perfiles')
         router.push('/login')
       }, 2000)
-    } catch (error: any) {
-      setDeleteAccountMessage('❌ ' + (error.message || 'No se pudo eliminar la cuenta'))
+    } catch (error: unknown) {
+      setDeleteAccountMessage('❌ ' + (error instanceof Error ? error.message : 'No se pudo eliminar la cuenta'))
     } finally {
       setDeleteAccountLoading(false)
     }

@@ -4,14 +4,14 @@
  * Hook para llamadas HTTP genéricas a la API
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiClient, ApiResponse } from '@/lib/api-client';
 
-interface UseApiOptions {
+interface UseApiOptions<T> {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  body?: any;
+  body?: unknown;
   immediate?: boolean;
-  onSuccess?: (data: any) => void;
+  onSuccess?: (data: T | null) => void;
   onError?: (error: Error) => void;
 }
 
@@ -23,15 +23,15 @@ interface UseApiReturn<T> {
   reset: () => void;
 }
 
-export function useApi<T = any>(
+export function useApi<T = unknown>(
   url: string | null,
-  options?: UseApiOptions
+  options?: UseApiOptions<T>
 ): UseApiReturn<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const execute = async (): Promise<T | null> => {
+  const execute = useCallback(async (): Promise<T | null> => {
     if (!url) {
       setError(new Error('URL es requerida'));
       return null;
@@ -73,19 +73,19 @@ export function useApi<T = any>(
     } finally {
       setLoading(false);
     }
-  };
+  }, [url, options]);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setData(null);
     setError(null);
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     if (options?.immediate !== false && url) {
       execute();
     }
-  }, [url]);
+  }, [execute, options?.immediate, url]);
 
   return { data, loading, error, execute, reset };
 }

@@ -67,9 +67,13 @@ export function ForgotPasswordForm({
       setTimeout(() => {
         router.push("/auth")
       }, 3000)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error:", err)
-      setError(err.response?.data?.message || "Error al procesar la solicitud")
+      setError(
+        axios.isAxiosError<{ message?: string }>(err) && err.response?.data?.message
+          ? err.response.data.message
+          : "Error al procesar la solicitud"
+      )
       setIsLoading(false)
     }
   }

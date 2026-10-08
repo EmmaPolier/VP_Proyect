@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { apiClient } from '@/lib/api-client'
 import { API_BASE_URL, API_ENDPOINTS } from '@/lib/api-constants'
 import { AlertCircle, CheckCircle2, Plus, Trash2 } from 'lucide-react'
-import { GoogleMap, Marker, DirectionsRenderer, useJsApiLoader } from '@react-google-maps/api'
+import { GoogleMap, Marker, DirectionsRenderer, useJsApiLoader, type Libraries } from '@react-google-maps/api'
 
 interface CreateRouteFormProps {
   onRouteCreated?: (routeId: number) => void
@@ -54,7 +54,15 @@ const defaultCenter = {
   lng: -75.5898,
 }
 
-const libraries = ['places'] as const
+const libraries: Libraries = ['places']
+
+function getDefaultDeparture() {
+  const departure = new Date()
+  departure.setHours(departure.getHours() + 1, 0, 0, 0)
+  return new Date(departure.getTime() - departure.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16)
+}
 
 export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRouteFormProps) {
   const { isLoaded } = useJsApiLoader({
@@ -75,7 +83,7 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
     destinationLat: 6.197458,
     destinationLng: -75.567108,
     destinationName: 'Politécnico',
-    departure: '2026-06-05T14:30',
+    departure: getDefaultDeparture(),
     availableSeats: 4,
     price: 15000,
   })
@@ -94,6 +102,8 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
   const originInputRef = useRef<HTMLInputElement>(null)
   const destInputRef = useRef<HTMLInputElement>(null)
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
+  const originAutocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
+  const destinationAutocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
 
   // Agregar punto de encuentro
   const addMeetingPoint = () => {
@@ -147,7 +157,7 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
       directionsServiceRef.current = new window.google.maps.DirectionsService()
     }
 
-    if (originInputRef.current && !window.originAutocomplete) {
+    if (originInputRef.current && !originAutocompleteRef.current) {
       const originAutocomplete = new window.google.maps.places.Autocomplete(originInputRef.current)
       originAutocomplete.addListener('place_changed', () => {
         const place = originAutocomplete.getPlace()
@@ -163,10 +173,10 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
           }
         }
       })
-      window.originAutocomplete = originAutocomplete
+      originAutocompleteRef.current = originAutocomplete
     }
 
-    if (destInputRef.current && !window.destAutocomplete) {
+    if (destInputRef.current && !destinationAutocompleteRef.current) {
       const destAutocomplete = new window.google.maps.places.Autocomplete(destInputRef.current)
       destAutocomplete.addListener('place_changed', () => {
         const place = destAutocomplete.getPlace()
@@ -182,7 +192,7 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
           }
         }
       })
-      window.destAutocomplete = destAutocomplete
+      destinationAutocompleteRef.current = destAutocomplete
     }
   }, [isLoaded, map])
 
@@ -214,7 +224,7 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
   }
 
   const handleMapClick = (e: google.maps.MapMouseEvent) => {
-    if (!selectingMode) return
+    if (!selectingMode || !e.latLng) return
 
     const lat = e.latLng.lat()
     const lng = e.latLng.lng()
@@ -282,16 +292,16 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
       const result = await Promise.race([
         directionsServiceRef.current.route(request),
         timeoutPromise,
-      ]) as google.maps.DirectionsResult & { status?: string }
+      ])
       
-      if (result && result.status === window.google.maps.DirectionsStatus.OK) {
+      if (result?.routes[0]?.legs.length) {
         setDirectionsResult(result)
 
         let totalDist = 0
         let totalDur = 0
         result.routes[0].legs.forEach((leg) => {
-          totalDist += leg.distance.value
-          totalDur += leg.duration.value
+        totalDist += leg.distance?.value ?? 0
+        totalDur += leg.duration?.value ?? 0
         })
 
         const distKm = (totalDist / 1000).toFixed(2)
@@ -305,7 +315,7 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
             : `${durMinutes}m`
         )
       } else {
-        console.warn('Directions request failed:', result?.status)
+        console.warn('Directions request returned no route')
         setDirectionsResult(null)
       }
     } catch (error: unknown) {
@@ -368,10 +378,10 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
         }))
       }
 
-      const response = await apiClient.post(`${API_BASE_URL}/api/routes`, payload)
+      const response = await apiClient.post<{ routeId: number }>(`${API_BASE_URL}/api/routes`, payload)
 
-      if (response.data?.data?.routeId || response.status === 201) {
-        const routeId = response.data?.data?.routeId
+      if (response.success && response.data?.routeId) {
+        const routeId = response.data.routeId
         setSuccess(`✅ ¡Ruta creada exitosamente! ID: ${routeId}`)
         onRouteCreated?.(routeId)
         
@@ -382,7 +392,7 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
           destinationLat: 6.197458,
           destinationLng: -75.567108,
           destinationName: 'Politécnico',
-          departure: '2026-06-05T14:30',
+          departure: getDefaultDeparture(),
           availableSeats: 4,
           price: 15000,
         })
@@ -573,9 +583,6 @@ export default function CreateRouteForm({ onRouteCreated, onCancel }: CreateRout
               zoom={13}
               onLoad={onLoad}
               onClick={handleMapClick}
-              options={{
-                cursor: selectingMode ? 'crosshair' : 'default',
-              }}
             >
               {directionsResult && (
                 <DirectionsRenderer

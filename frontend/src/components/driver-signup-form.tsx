@@ -102,9 +102,9 @@ export function DriverSignupForm({
 
         router.push("/auth")
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error en registro:", error)
-      if (error.response?.data?.message) {
+      if (axios.isAxiosError<{ message?: string }>(error) && error.response?.data?.message) {
         setError(error.response.data.message)
       } else {
         setError("Error al crear la cuenta. Intenta de nuevo.")

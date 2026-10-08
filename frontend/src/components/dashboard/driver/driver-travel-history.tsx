@@ -53,9 +53,9 @@ export function DriverTravelHistory() {
           console.error('[DRIVER-TRAVEL-HISTORY] Failed - success:', response.success, 'data:', !!response.data)
           setError(response.message || "No se pudo cargar el historial")
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("[DRIVER-TRAVEL-HISTORY] Error fetching travel history:", err)
-        setError(err.response?.data?.message || "Error al cargar historial")
+        setError(err instanceof Error ? err.message : "Error al cargar historial")
       } finally {
         setLoading(false)
       }
@@ -202,7 +202,7 @@ export function DriverTravelHistory() {
                       <div className="bg-yellow-50 p-3 rounded-lg text-sm border border-yellow-100">
                         <p className="text-gray-600">⭐ Calificación: <span className="font-semibold text-yellow-700">{travel.calificacion}/5</span></p>
                         {travel.comentario && (
-                          <p className="text-gray-500 mt-1 italic">"{travel.comentario}"</p>
+                          <p className="text-gray-500 mt-1 italic">&quot;{travel.comentario}&quot;</p>
                         )}
                       </div>
                     )}

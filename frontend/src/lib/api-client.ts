@@ -26,7 +26,7 @@ interface FetchOptions extends RequestInit {
 }
 
 class ApiClient {
-  private timeout = 5000;
+  private timeout = 15000;
 
   private getAuthToken(): string | null {
     if (typeof window === 'undefined') {
@@ -91,6 +91,9 @@ class ApiClient {
       return data;
     } catch (error) {
       clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`La solicitud a ${url} excedió el tiempo límite de ${timeout} ms.`);
+      }
       throw error instanceof Error
         ? error
         : new Error('Unknown error occurred');

@@ -25,7 +25,7 @@ import {
 export interface DataTableColumn<T> {
   header: string;
   accessor: keyof T;
-  render?: (value: any, row: T) => React.ReactNode;
+  render?: (value: unknown, row: T) => React.ReactNode;
   width?: string;
 }
 
@@ -46,7 +46,7 @@ interface DataTableProps<T> {
   emptyMessage?: string;
 }
 
-export function DataTable<T extends { id?: number }>({
+export function DataTable<T extends { id?: string | number }>({
   columns,
   data,
   loading = false,

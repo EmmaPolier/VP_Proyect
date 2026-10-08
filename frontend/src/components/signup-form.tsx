@@ -201,23 +201,23 @@ export function SignupForm({
           }
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error:", err)
       
       // Prioridad de mensajes de error
-      if (err.response?.data?.message) {
+      if (axios.isAxiosError<{ message?: string; error?: string }>(err) && err.response?.data?.message) {
         // Mensaje específico del servidor
         setError(err.response.data.message)
-      } else if (err.response?.data?.error) {
+      } else if (axios.isAxiosError<{ message?: string; error?: string }>(err) && err.response?.data?.error) {
         // Campo de error alternativo
         setError(err.response.data.error)
-      } else if (err.response?.status === 400) {
+      } else if (axios.isAxiosError(err) && err.response?.status === 400) {
         // Error de validación
         setError("Error en los datos ingresados. Verifica todos los campos.")
-      } else if (err.response?.status === 500) {
+      } else if (axios.isAxiosError(err) && err.response?.status === 500) {
         // Error del servidor
         setError("Error en el servidor. Intenta más tarde.")
-      } else if (err.code === "ERR_NETWORK") {
+      } else if (axios.isAxiosError(err) && err.code === "ERR_NETWORK") {
         setError("Error de conexión. Verifica tu conexión a internet.")
       } else {
         setError("Error al crear la cuenta. Intenta de nuevo.")

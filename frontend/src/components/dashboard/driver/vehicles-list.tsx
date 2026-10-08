@@ -37,19 +37,31 @@ interface VehiclesResponse {
 }
 
 interface Brand {
-  ID_MAR: number
-  NOMBRE_MAR: string
+  id: number
+  nombre: string
 }
 
 interface Model {
-  ID_MOD: number
-  NOMBRE_MOD: string
-  AÑO_MOD: number
+  id: number
+  nombre: string
+  año: number
 }
 
 interface Color {
-  ID_COL: number
-  NOMBRE_COL: string
+  id: number
+  nombre: string
+}
+
+interface BrandsResponse {
+  brands: Brand[]
+}
+
+interface ColorsResponse {
+  colors: Color[]
+}
+
+interface ModelsResponse {
+  models: Model[]
 }
 
 export function VehiclesList() {
@@ -88,10 +100,10 @@ export function VehiclesList() {
         API_ENDPOINTS.GET_USER_VEHICLES
       )
 
-      setVehicles(response.vehiculos || [])
-    } catch (err: any) {
+      setVehicles(response.data?.vehiculos || [])
+    } catch (err: unknown) {
       console.error("Error fetching vehicles:", err)
-      setError(err.response?.data?.error || "Error al cargar vehículos")
+      setError(err instanceof Error ? err.message : "Error al cargar vehículos")
     } finally {
       setLoading(false)
     }
@@ -102,13 +114,13 @@ export function VehiclesList() {
       setLoadingCatalogs(true)
       
       const [brandsRes, colorsRes] = await Promise.all([
-        apiClient.get(API_ENDPOINTS.GET_VEHICLE_BRANDS),
-        apiClient.get(API_ENDPOINTS.GET_VEHICLE_COLORS),
+        apiClient.get<BrandsResponse>(API_ENDPOINTS.GET_VEHICLE_BRANDS),
+        apiClient.get<ColorsResponse>(API_ENDPOINTS.GET_VEHICLE_COLORS),
       ])
 
-      setBrands(brandsRes.brands || [])
-      setColors(colorsRes.colors || [])
-    } catch (err: any) {
+      setBrands(brandsRes.data?.brands || [])
+      setColors(colorsRes.data?.colors || [])
+    } catch (err: unknown) {
       console.error("Error fetching catalogs:", err)
     } finally {
       setLoadingCatalogs(false)
@@ -122,11 +134,11 @@ export function VehiclesList() {
     }
 
     try {
-      const response = await apiClient.get(
+      const response = await apiClient.get<ModelsResponse>(
         `${API_ENDPOINTS.GET_VEHICLE_MODELS}?brandId=${brandId}`
       )
-      setModels(response.models || [])
-    } catch (err: any) {
+      setModels(response.data?.models || [])
+    } catch (err: unknown) {
       console.error("Error fetching models:", err)
       setModels([])
     }
@@ -192,8 +204,8 @@ export function VehiclesList() {
 
       // Limpiar mensaje después de 3 segundos
       setTimeout(() => setSuccessMessage(""), 3000)
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.message || "Error al registrar vehículo")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al registrar vehículo")
     } finally {
       setSubmitting(false)
     }
@@ -217,8 +229,8 @@ export function VehiclesList() {
 
       // Limpiar mensaje después de 3 segundos
       setTimeout(() => setSuccessMessage(""), 3000)
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.message || "Error al eliminar vehículo")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al eliminar vehículo")
     } finally {
       setDeleteLoading(null)
     }

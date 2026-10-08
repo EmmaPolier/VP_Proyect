@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import axios from "axios"
 import { cn } from "@/lib/utils"
@@ -22,6 +22,19 @@ import { Input } from "@/components/ui/input"
 import Link from "next/link"
 
 const API_URL = API_BASE_URL
+const PERFIL_AGREGADO_MESSAGE = "✅ Perfil agregado exitosamente. Ahora puedes cambiar entre perfiles al iniciar sesión."
+
+interface Perfil {
+  id: number
+  nombre: string
+  calificacion: number
+}
+
+interface Credentials {
+  email: string
+  documento: string
+  nombres: string
+}
 
 export function LoginForm({
   className,
@@ -33,17 +46,12 @@ export function LoginForm({
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
+  const [success, setSuccess] = useState(
+    searchParams.get("perfil") === "agregado" ? PERFIL_AGREGADO_MESSAGE : ""
+  )
   const [showPerfils, setShowPerfils] = useState(false)
-  const [perfiles, setPerfiles] = useState<any[]>([])
-  const [credenciales, setCredenciales] = useState<any>(null)
-
-  useEffect(() => {
-    const perfilParam = searchParams.get("perfil")
-    if (perfilParam === "agregado") {
-      setSuccess("✅ Perfil agregado exitosamente. Ahora puedes cambiar entre perfiles al iniciar sesión.")
-    }
-  }, [searchParams])
+  const [perfiles, setPerfiles] = useState<Perfil[]>([])
+  const [credenciales, setCredenciales] = useState<Credentials | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -104,12 +112,12 @@ export function LoginForm({
       // Redirigir a admin/catalogs si es administrador
       const isAdmin = response.data.id_perfil === 3
       router.push(isAdmin ? "/admin/catalogs" : "/dashboard")
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error:", err)
       let errorMessage = "Error al conectar con el servidor"
       let errorDetails = ""
 
-      if (err.response?.data) {
+      if (axios.isAxiosError<{ error?: string; details?: string; message?: string; estado?: string }>(err) && err.response?.data) {
         const data = err.response.data
         
         if (data.error) {
@@ -138,6 +146,10 @@ export function LoginForm({
   }
 
   const handleSelectPerfil = async (perfilId: number) => {
+    if (!credenciales) {
+      setError("No se encontraron las credenciales para cambiar de perfil.")
+      return
+    }
     setLoading(true)
     try {
       const response = await axios.post(`${API_URL}/login`, {
@@ -176,11 +188,11 @@ export function LoginForm({
       // Redirigir a admin/catalogs si es administrador
       const isAdmin = response.data.id_perfil === 3
       router.push(isAdmin ? "/admin/catalogs" : "/dashboard")
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error:", err)
       let errorMessage = "Error al cambiar perfil"
 
-      if (err.response?.data) {
+      if (axios.isAxiosError<{ error?: string; details?: string; message?: string }>(err) && err.response?.data) {
         const data = err.response.data
         if (data.error) {
           errorMessage = data.error

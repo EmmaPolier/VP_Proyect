@@ -17,8 +17,14 @@ import {
 } from "@/components/ui/sidebar"
 import { TerminalSquareIcon, BotIcon, BookOpenIcon, Settings2Icon, LifeBuoyIcon, SendIcon, FrameIcon, PieChartIcon, MapIcon, TerminalIcon } from "lucide-react"
 
+interface Perfil {
+  id: number
+  nombre: string
+  calificacion: number
+}
+
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
-  const [perfiles, setPerfiles] = React.useState<any[]>([])
+  const [perfiles, setPerfiles] = React.useState<Perfil[]>([])
   const [rolActual, setRolActual] = React.useState<number | null>(null)
   const [userData, setUserData] = React.useState({ name: "Usuario", email: "email@example.com", avatar: "/avatars/default.jpg" })
 
@@ -30,7 +36,10 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
     const currentUserStr = localStorage.getItem('currentUser')
     
     if (perfilesStr) {
-      setPerfiles(JSON.parse(perfilesStr))
+      const parsedPerfiles: unknown = JSON.parse(perfilesStr)
+      if (Array.isArray(parsedPerfiles)) {
+        setPerfiles(parsedPerfiles as Perfil[])
+      }
     }
     if (rolActivoStr) {
       setRolActual(parseInt(rolActivoStr))
@@ -201,7 +210,6 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
   ],
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar
       className="top-(--header-height) h-[calc(100svh-var(--header-height))]!"
@@ -230,7 +238,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} perfiles={perfiles} rolActual={rolActual} />
+        <NavUser user={data.user} perfiles={perfiles} rolActual={rolActual ?? undefined} />
       </SidebarFooter>
     </Sidebar>
   )
