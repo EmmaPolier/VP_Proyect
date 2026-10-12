@@ -27,6 +27,7 @@ import { DriverWallet } from "./driver/driver-wallet"
 import { DriverProfile } from "./driver/driver-profile"
 import { DriverSettings } from "./driver/driver-settings"
 import { PassengerSettings } from "./passenger/passenger-settings"
+import { EmergencyContacts } from "./emergency-contacts"
 import { EmergencyAlertButton } from "./emergency-alert-button"
 
 interface DashboardContentProps {
@@ -1988,52 +1989,55 @@ export function DashboardContent({ userType = "passenger" }: DashboardContentPro
 
         {/* Configuración Tab */}
         <TabsContent value="configuracion">
-          <Card>
-            <CardHeader>
-              <CardTitle>Configuración de Cuenta</CardTitle>
-              <CardDescription>Gestiona tu cuenta y privacidad</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Información de cuenta */}
-              <div className="space-y-4 pb-6 border-b">
-                <h3 className="text-lg font-semibold">Información de Cuenta</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-muted-foreground">Nombre</label>
-                    <p className="text-sm font-medium">{dashboardUser?.nombres || 'N/A'}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-muted-foreground">Documento</label>
-                    <p className="text-sm font-medium">{dashboardUser?.documento || 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Zona de peligro */}
-              <div className="space-y-4 pt-6 border-t border-red-200">
-                <h3 className="text-lg font-semibold text-red-600">Zona de Peligro</h3>
-                <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-                  <h4 className="font-semibold text-red-900 mb-2">Eliminar Cuenta</h4>
-                  <p className="text-sm text-red-800 mb-4">
-                    ⚠️ Esta acción es irreversible. Se eliminarán todos tus datos, rutas, solicitudes y transacciones.
-                  </p>
-                  <Button
-                    variant="destructive"
-                    onClick={handleDeleteAccount}
-                    disabled={deleteAccountLoading}
-                    className="bg-red-600 hover:bg-red-700"
-                  >
-                    {deleteAccountLoading ? 'Eliminando...' : 'Eliminar mi cuenta'}
-                  </Button>
-                  {deleteAccountMessage && (
-                    <div className="mt-3 rounded-lg bg-white p-3 text-sm">
-                      {deleteAccountMessage}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuración de Cuenta</CardTitle>
+                <CardDescription>Gestiona tu cuenta y privacidad</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Información de cuenta */}
+                <div className="space-y-4 pb-6 border-b">
+                  <h3 className="text-lg font-semibold">Información de Cuenta</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Nombre</label>
+                      <p className="text-sm font-medium">{dashboardUser?.nombres || 'N/A'}</p>
                     </div>
-                  )}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Documento</label>
+                      <p className="text-sm font-medium">{dashboardUser?.documento || 'N/A'}</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+
+                {/* Zona de peligro */}
+                <div className="space-y-4 pt-6 border-t border-red-200">
+                  <h3 className="text-lg font-semibold text-red-600">Zona de Peligro</h3>
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                    <h4 className="font-semibold text-red-900 mb-2">Eliminar Cuenta</h4>
+                    <p className="text-sm text-red-800 mb-4">
+                      ⚠️ Esta acción es irreversible. Se eliminarán todos tus datos, rutas, solicitudes y transacciones.
+                    </p>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDeleteAccount}
+                      disabled={deleteAccountLoading}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {deleteAccountLoading ? 'Eliminando...' : 'Eliminar mi cuenta'}
+                    </Button>
+                    {deleteAccountMessage && (
+                      <div className="mt-3 rounded-lg bg-white p-3 text-sm">
+                        {deleteAccountMessage}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <EmergencyContacts />
+          </div>
         </TabsContent>
       </Tabs>
 

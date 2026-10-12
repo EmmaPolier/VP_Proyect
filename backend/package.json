@@ -16,11 +16,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
     "axios": "latest",
     "bcryptjs": "latest",
     "cors": "latest",
     "dotenv": "latest",
     "express": "latest",
+    "googleapis": "^185.0.0",
     "jsonwebtoken": "latest",
     "node-fetch": "^2.7.0",
     "nodemailer": "latest",

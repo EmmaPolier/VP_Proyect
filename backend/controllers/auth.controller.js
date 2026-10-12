@@ -129,7 +129,10 @@ export async function register(req, res) {
         await sendOTP(email, code);
         console.log('[INFO] OTP enviado para nuevo perfil:', nombrePerfil);
       } catch (emailError) {
-        console.warn('[WARNING] No se pudo enviar OTP, pero el perfil fue agregado:', emailError.message);
+        console.error(
+          '[ERROR] No se pudo enviar el código de verificación:',
+          emailError.message
+        );
       }
 
       await connection.close();
@@ -269,7 +272,10 @@ export async function register(req, res) {
     try {
       await sendOTP(email, code);
     } catch (emailError) {
-      console.warn('[WARNING] No se pudo enviar OTP, pero el registro fue exitoso');
+      console.error(
+        '[ERROR] No se pudo enviar el código de verificación:',
+        emailError.message
+      );
     }
 
     await connection.close();
