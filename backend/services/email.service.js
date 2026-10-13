@@ -103,6 +103,7 @@ export async function sendEmergencyNotification({
   to,
   userName,
   routeId,
+  tipoEmergencia,
   departure,
   origin,
   destination,
@@ -118,6 +119,7 @@ export async function sendEmergencyNotification({
       <h2>Alerta de emergencia - VamosPuesDrive</h2>
       <p>Contacta a ${escapeHtml(userName)} y verifica que esté bien.</p>
       <p><strong>Ruta:</strong> ${escapeHtml(routeId)}</p>
+      <p><strong>Tipo de emergencia:</strong> ${escapeHtml(tipoEmergencia)}</p>
       <p><strong>Origen:</strong> ${escapeHtml(origin)}</p>
       <p><strong>Destino:</strong> ${escapeHtml(destination)}</p>
       <p><strong>Salida:</strong> ${escapeHtml(departure)}</p>

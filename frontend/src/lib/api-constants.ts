@@ -1,3 +1,4 @@
+
 /**
  * Constantes de API para el Admin Panel
  */
@@ -70,6 +71,9 @@ export const API_ENDPOINTS = {
   DELETE_FAVORITE_DRIVER: (idUpe: number) => `${API_BASE_URL}/api/usuario/conductores-favoritos/${idUpe}`,
   PUBLIC_DRIVER_PROFILE: (idUpe: number) => `${API_BASE_URL}/api/conductores/${idUpe}`,
   DRIVER_TRIPS: (idUpe: number) => `${API_BASE_URL}/api/conductores/${idUpe}/viajes`,
+
+  // Emergencias
+  EMERGENCY_TYPES: `${API_BASE_URL}/api/routes/tipos-emergencia`,
 };
 
 export const ESTADO_TIPOS = {
