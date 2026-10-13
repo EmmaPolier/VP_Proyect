@@ -51,45 +51,46 @@ Cada área tiene un solo responsable de escritura. Los demás contribuyen median
 
 ## Fase 3: Botón y envío de alerta de emergencia
 
-**Estado actual comprobado en el repositorio:** Existe el endpoint `POST /api/routes/:id/emergencias`, protegido por `authMiddleware` y montado bajo `/api/routes`. El controlador, el servicio de email, el botón frontend y sus puntos de integración están presentes. Esta revisión inspeccionó el código, pero no ejecutó el flujo contra Oracle ni envió correos. Las pruebas manuales mencionadas en notas anteriores son antecedentes reportados, no una verificación de esta edición.
+**Estado actual comprobado en el repositorio:** ~~Existe el endpoint `POST /api/routes/:id/emergencias`, protegido por `authMiddleware` y montado bajo `/api/routes`. El controlador, el servicio de email, el botón frontend y sus puntos de integración están presentes.~~ El catálogo `TIPO_EMERGENCIA` y sus cuatro registros activos fueron creados y confirmados en Oracle por el usuario. El menú obtiene las opciones desde `GET /api/routes/tipos-emergencia`; el usuario confirmó que, después de ejecutar `COMMIT`, estas aparecieron. El endpoint de alerta valida el ID activo, comprueba ruta/participación/contactos, y entrega el nombre del tipo al servicio de email. El usuario reportó una prueba exitosa de envío de alerta por correo antes de integrar el catálogo; **falta confirmar en una prueba extremo a extremo que el tipo seleccionado aparece en el correo**. No se han reportado pruebas de todos los casos de aceptación de esta fase.
 
 **Objetivo y resultado esperado:** Durante una ruta `EN_CURSO`, el conductor propietario o un pasajero con solicitud `ACEPTADA` y cupo `RESERVADO` puede confirmar una alerta. Se intenta enviar un email individual a cada contacto de emergencia activo del emisor. La ubicación es opcional. La interfaz informa el resultado de los intentos y no presenta el sistema como servicio oficial ni garantiza entrega o lectura.
 
 **Prerrequisitos y dependencias**
-- Deben estar disponibles las migraciones y el CRUD de contactos de emergencia, además de cuentas dedicadas de integración y configuración SMTP de prueba.
+- ~~Están disponibles la tabla y el CRUD de contactos de emergencia.~~ Para pruebas pendientes, usar cuentas dedicadas y Gmail API configurada; no probar con contactos reales.
 - El flujo reutiliza la ruta, solicitud, cupo y contacto existentes; no depende de tabla de alertas.
-- La versión backend y frontend deben usar el mismo contrato ya montado. Se puede simular el servicio SMTP para probar fallos sin notificar contactos reales.
+- ~~Backend y frontend comparten el contrato para cargar tipos y enviar alertas.~~ Para probar fallos del proveedor, definir una estrategia de simulación Gmail/API sin notificar contactos reales.
 
 **Crear o modificar**
-- **Datos:** no crear tablas de alertas ni historial en v1. La revisión encontró los scripts existentes de contactos; confirmar que la base aislada tiene `CONTACTO_EMERGENCIA.ACTIVO_CEM` antes de probar.
-- **Backend existente:** `backend/controllers/emergencia.controller.js`, `backend/routes/route.routes.js`, `backend/services/email.service.js` y el montaje `/api/routes` en `backend/index.js`. No crear endpoints alternativos.
-- **Frontend existente:** `frontend/src/components/dashboard/emergency-alert-button.tsx`, el montaje en `frontend/src/components/dashboard/content.tsx` y la constante en `frontend/src/lib/api-constants.ts`.
-- **Pruebas:** no se encontraron archivos `*.test.*` o `*.spec.*` en backend/frontend ni scripts de test en sus manifiestos. Antes de automatizar, acordar runner y estrategia para Oracle/SMTP; hasta entonces, registrar ejecuciones de aceptación reproducibles con fixtures.
+- **Datos:** ~~No crear tablas de alertas ni historial en v1.~~ La tabla de catálogo `TIPO_EMERGENCIA` y sus cuatro tipos fueron creados en Oracle. ~~La base ya cuenta con `CONTACTO_EMERGENCIA.ACTIVO_CEM`.~~ No se requiere persistir el historial de alertas en el alcance v1.
+- **Backend existente:** ~~`backend/controllers/emergencia.controller.js`, `backend/routes/route.routes.js`, `backend/services/email.service.js` y el montaje `/api/routes` en `backend/index.js`.~~ Además, `backend/controllers/tipo-emergencia.controller.js` expone el catálogo activo. La ruta de catálogo y el envío de alertas reutilizan `/api/routes`; no crear endpoints alternativos.
+- **Frontend existente:** ~~`frontend/src/components/dashboard/emergency-alert-button.tsx`, integrado en el dashboard, muestra el menú y envía `tipoEmergenciaId`; `frontend/src/lib/api-constants.ts` apunta al endpoint de catálogo.~~ El menú ya mostró las opciones después de confirmar los INSERT en Oracle.
+- **Pruebas:** no se encontraron archivos `*.test.*` o `*.spec.*` en backend/frontend ni scripts de test en sus manifiestos. Antes de automatizar, acordar runner y estrategia para Oracle/Gmail API; hasta entonces, registrar ejecuciones de aceptación reproducibles con fixtures.
 - **Documentación:** mantener contrato, checklist de pruebas y límites operativos aquí; no documentar correo real, credenciales ni coordenadas de personas.
 
 **Programar (pasos de implementación y verificación)**
 1. Preparar usuarios, rutas y contactos ficticios para conductor dueño, pasajero aceptado/reservado, solicitud pendiente y usuario ajeno.
-2. Verificar JWT obligatorio; derivar documento e identidad del token; rechazar ruta inexistente (`404`), no participante (`403`), estado distinto de `EN_CURSO` (`409`) y ausencia de contactos activos (`409`).
-3. Comprobar que el body solo admite `ubicacion` opcional; si existe, latitud y longitud deben ser numéricas, finitas, estar juntas y respetar rangos geográficos. Probar denegación/timeout GPS desde UI: debe continuar sin ubicación.
-4. Enviar `Idempotency-Key` UUID. La repetición idéntica durante 10 minutos por instancia debe devolver el resultado cacheado; reutilizar la clave con datos distintos debe dar `409`. Una activación adicional para el mismo usuario/ruta dentro de 30 segundos debe dar `429`.
-5. Simular SMTP exitoso, lento (timeout de 5 segundos por destinatario), fallo parcial y fallo total. Confirmar que el resultado agregado y por contacto no revela direcciones ni detalles internos SMTP, y que los HTML dinámicos se escapan.
-6. En la UI, comprobar confirmación antes de enviar, control de envío duplicado, texto de éxito/fallo parcial/error y que no se informe “entregado” o “leído” cuando solo se confirma el intento SMTP.
+2. ~~Implementado: JWT obligatorio, identidad tomada del usuario autenticado, autorización de participante/ruta `EN_CURSO` y exigencia de contactos activos.~~ Pendiente: ejecutar casos de autorización en integración.
+3. ~~Implementado: validación de `tipoEmergenciaId` y ubicación opcional con coordenadas finitas y dentro de rango.~~ Pendiente: probar GPS denegado/timeout desde UI y confirmar alerta sin ubicación.
+4. ~~Implementado: UUID `Idempotency-Key`, huella con ruta/tipo/ubicación, idempotencia de 10 minutos por instancia y límite de 30 segundos por usuario/ruta.~~ Pendiente: verificar repetición, conflicto y límite en ejecución.
+5. ~~Implementado: envío individual, resultados por destinatario y escape de contenido HTML; el usuario reportó que el envío básico de alerta por correo funciona.~~ Pendiente: comprobar que el tipo seleccionado aparece en el email y probar errores parciales/totales y privacidad con datos de prueba.
+6. ~~Implementado: confirmación en UI, bloqueo durante envío, mensajes de resultado y menú que carga tipos activos del catálogo.~~ Pendiente: verificar estados de fallo en UI y que los mensajes no prometan entrega o lectura final.
 
 **Integrar**
-1. Usar primero contactos y rutas de integración; luego desplegar/levantar backend y verificar endpoint con cliente HTTP y SMTP simulado.
-2. Integrar el botón en conductor y pasajero aceptado, siguiendo el mismo JWT del cliente API; iniciar ruta mediante el flujo ya existente y confirmar que el botón solo aparece en estado `EN_CURSO`.
-3. Probar con Oracle aislado y dos identidades; no ejecutar pruebas con correos reales. No desplegar migración nueva para esta fase.
+1. ~~El endpoint del catálogo y el endpoint de emergencia consultan Oracle; el menú cargó después de confirmar los INSERT y el usuario reportó una prueba exitosa del envío básico por Gmail API.~~ Pendiente: comprobar por HTTP el contrato completo y enviar una prueba que verifique el tipo seleccionado en el email.
+2. ~~El botón reutiliza el cliente API autenticado y está integrado en el flujo de emergencia de los participantes.~~ Pendiente: ejecutar pruebas con dos identidades, ruta `EN_CURSO` y destinatarios de prueba.
+3. No desplegar otra migración para esta fase. Completar pruebas con Oracle y correos de prueba; no usar contactos reales para probar las opciones.
 
 **Pruebas de aceptación**
-- Dueño en ruta `EN_CURSO` y pasajero aceptado/reservado envían alerta; pendiente, ajeno y pasajero sin cupo reservado no pueden.
-- Ruta no iniciada/finalizada, JWT ausente, ID inválido y coordenadas mal formadas devuelven error sin enviar correos.
-- Solo reciben mensajes los contactos activos del emisor; destinatarios inactivos o de otro usuario no reciben nada.
-- Repetición idempotente, conflicto de clave, rate limit, GPS denegado y resultados SMTP parcial/total coinciden con los códigos y textos definidos arriba.
-- Prueba de privacidad en el email: ubicación redondeada, destinatarios individuales y HTML no ejecutable.
+- ~~Implementado: control de participación y estado de ruta.~~ Pendiente de prueba integrada: conductor dueño y pasajero aceptado/reservado permitidos; solicitud pendiente, ajeno y cupo no reservado rechazados.
+- ~~Implementado: validación de tipo activo y coordenadas.~~ Pendiente de prueba integrada: ruta no válida, JWT ausente, ID/tipo inválido y coordenadas mal formadas sin envío.
+- ~~Implementado: selección de contactos activos del emisor.~~ Pendiente de comprobar con contactos de prueba activos, inactivos y de otro usuario.
+- ~~Implementado: idempotencia y rate limit.~~ Pendiente de probar repetición, clave conflictiva, límite, GPS denegado y fallos parciales/totales del proveedor.
+- ~~Implementado: destinatarios individuales y escape HTML.~~ Pendiente de comprobar privacidad, precisión de la ubicación y que el correo recibido incluya el tipo seleccionado.
 
 **Criterio de salida**
-- Casos anteriores pasan con cuentas y servicio de correo de prueba; UI conductor/pasajero muestra estados previstos; no hay alertas a contactos reales durante pruebas.
-- Registrar explícitamente que la idempotencia (10 min) y el límite (30 s) son por proceso/memoria, y que un correo aceptado por SMTP no prueba lectura ni entrega final.
+- ~~Implementación de catálogo, carga del menú, validación de tipo activo y paso del nombre al email. El usuario confirmó que el menú cargó tras `COMMIT` y que el envío básico por correo tuvo éxito.~~
+- Fase pendiente de cierre hasta confirmar en una prueba que el tipo seleccionado aparece en el email y ejecutar los casos de aceptación restantes con cuentas y contactos de prueba; no enviar alertas de prueba a contactos reales.
+- ~~Registrar explícitamente que la idempotencia (10 min) y el límite (30 s) son por proceso/memoria, y que la aceptación de envío por Gmail API no prueba lectura ni entrega final.~~
 - Este cierre desbloquea la regresión de rutas/contactos; no es prerrequisito técnico para Fase 5.
 
 **Riesgos y decisiones abiertas**
@@ -254,14 +255,14 @@ Esta fase se omite del plan ejecutable a petición del usuario, quien la indica 
 3. **Preparar base aislada:** revisar DDL vigente; crear migración incremental solo si es necesaria; probar aplicación, restricciones, reinicio y rollback/recuperación antes de cualquier esquema compartido. No ejecutar migraciones concurrentes.
 4. **Implementar backend:** consultas parametrizadas, identidad obtenida del JWT, autorización en cada operación/evento, errores explícitos y pruebas con Oracle/servicios simulados.
 5. **Implementar frontend en paralelo con fixtures:** no bloquear componentes por la API si el contrato está congelado; incluir carga, vacío, error, éxito, cancelación y reconexión cuando aplique.
-6. **Integrar por entorno:** migración → backend → frontend → navegador/HTTP → aceptación con datos dedicados. Simular SMTP y realtime; no generar correos, reservas ni comparticiones con datos reales.
+6. **Integrar por entorno:** migración → backend → frontend → navegador/HTTP → aceptación con datos dedicados. Simular Gmail API y realtime; no generar correos, reservas ni comparticiones con datos reales.
 7. **Ejecutar regresión y documentar:** comprobar el criterio de salida y los flujos previos afectados; anotar comandos, entorno, resultado y limitaciones. No declarar una fase cerrada por inspección de código solamente.
 
 ### Matriz de dependencias y paralelismo
 
 | Fase incluida | Backend | Frontend | Datos/Oracle | Dependencia y puerta de salida |
 |---|---|---|---|---|
-| 3. Emergencia | Verificar endpoint, membresía, estados, idempotencia y servicio SMTP | Confirmación, GPS opcional y resultado por intento | Reutiliza ruta, solicitud, cupo y contactos; sin tabla de alertas v1 | Requiere contactos activos. Cierra al pasar autorización, casos de envío y UI; no bloquea Fase 5. |
+| 3. Emergencia | ~~Endpoint, membresía, validación de tipo, envío por email e idempotencia implementados~~; pruebas integradas pendientes | ~~Menú de tipos desde catálogo, confirmación, GPS opcional y resultado por intento implementados~~; aceptación pendiente | ~~Catálogo `TIPO_EMERGENCIA` creado; reutiliza ruta, solicitud, cupo y contactos~~; sin tabla de historial v1 | Fase pendiente de confirmar tipo en correo y ejecutar casos de aceptación; no bloquea Fase 5. |
 | 4. Favoritos | Fuera de alcance de este plan; se considera completada por indicación del usuario | — | — | Fase 5 parte de Favoritos disponible; pruebas previas no se repiten aquí. |
 | 5. Detalle/viajes | Endpoint de perfil/viajes y solicitud existente | Detalle, filtros, paginación y CTA | Sin migración identificada; fixtures y dataset >20 rutas | Requiere Favoritos y datos de integración; salida exige paginación real, privacidad y solicitud/rechazos. |
 | 6. Compartir ubicación | Definir auth/realtime, membresía, revocación y expiración | Consentimiento, GPS, emisor/destinatario | Migración propuesta para estado/última posición y destinatarios | Contratos/UI/esquema pueden avanzar en paralelo tras decidir política; no publicar hasta superar seguridad y purga. |
@@ -276,7 +277,7 @@ Para evitar conflictos, asignar un solo responsable de edición por capa: **back
 - **Backend:** identidad y permisos comprobados para titular/no titular, SQL parametrizado, errores con códigos observables; ninguna operación confía en ID de usuario/contacto/participante enviado por cliente.
 - **Frontend:** estados de carga, vacío, error y éxito; controles bloqueados mientras hay envío; teclado/etiquetas accesibles; vistas verificadas en ancho de 360 px.
 - **Integración:** pruebas con JWT ausente, dos usuarios, estados no permitidos, datos faltantes y concurrencia relevante; ejecutar regresión de rutas/solicitudes.
-- **Emergencias:** SMTP simulado con éxito/timeout/fallo parcial/fallo total; comprobar resultado agregado/individual, idempotencia y límite. No afirmar persistencia, historial o reintento duradero.
+- **Emergencias:** Gmail API simulada o entorno de prueba con éxito/timeout/fallo parcial/fallo total; comprobar resultado agregado/individual, tipo incluido en el correo, idempotencia y límite. No afirmar persistencia, historial o reintento duradero.
 - **Ubicación:** consentimiento, destinatario autorizado, revocación, reconexión y expiración/purga; no guardar trayectoria.
 - **Chat:** membresía por conexión y evento, texto plano, tamaño/frecuencia, deduplicación, cierre y purga.
 - **Entrega:** registrar pasos de migración/configuración/despliegue, resultados, limitaciones y responsable de la operación de limpieza.
@@ -287,7 +288,7 @@ Esta sección reúne contratos y riesgos. Para las fases 3 y 5, la etiqueta “e
 
 ### Estado comprobado en esta revisión
 
-- La ruta Express de emergencias, controlador/servicio de email, botón y puntos de montaje están presentes. No se mandó correo real ni se corrieron pruebas en Oracle durante esta revisión.
+- La ruta Express de emergencias, controlador/servicio de email, botón y puntos de montaje están presentes. El usuario reportó que el catálogo se mostró tras confirmar sus INSERT y que el envío básico de alerta por correo funciona; aún no confirmó un correo recibido que incluya el tipo seleccionado.
 - Los endpoints de conductor y la UI detalle/viajes están presentes; la respuesta y comportamiento descritos en Fase 5 reflejan inspección de código, no prueba ejecutada aquí.
 - Los scripts inspeccionados son incrementales para contactos/favoritos; no se encontró esquema de ubicación/chat ni Socket.IO/WebSocket en los directorios inspeccionados/manifiestos consultados.
 - El usuario indicó que la Fase 4 está completada. La existencia de archivos/scripts se verificó, pero no se repitió integración en Oracle.
@@ -296,7 +297,7 @@ Esta sección reúne contratos y riesgos. Para las fases 3 y 5, la etiqueta “e
 
 - **Autorización e identidad:** los endpoints son autenticados salvo que un contrato nuevo indique lo contrario. El propietario se obtiene del JWT (`req.user.documento`), y el perfil de conductor se identifica por `ID_UPE`. Nunca confiar en propietario, participante, destinatarios ni identidad enviados por el cliente. Usar SQL parametrizado; no incluir JWT, documentos, correos, mensajes sensibles ni coordenadas precisas en logs.
 - **Contactos de emergencia:** `/api/usuario/contactos-emergencia` permite listar, crear, editar/activar y eliminar solo registros del usuario autenticado. Nombre, relación y correo son obligatorios; normalizar correo a minúscula; máximo cinco contactos activos por usuario; el correo es único por propietario incluso si el contacto está inactivo. Solo los activos reciben alertas.
-- **Emergencias:** `POST /api/routes/:id/emergencias` permite alertar al conductor dueño o pasajero con solicitud `ACEPTADA` y cupo `RESERVADO` solo cuando la ruta está `EN_CURSO`. `ubicacion` es opcional; latitud y longitud deben enviarse juntas y estar dentro de rango. El backend envía un correo individual por contacto activo y no retorna correos ni detalles SMTP. No hay persistencia ni historial v1. Idempotencia de 10 minutos y rate limit de 30 segundos dependen de memoria/proceso; timeout SMTP de 5 segundos por destinatario.
+- **Emergencias:** `GET /api/routes/tipos-emergencia` devuelve tipos activos de `TIPO_EMERGENCIA`; el menú envía `tipoEmergenciaId`. `POST /api/routes/:id/emergencias` permite alertar al conductor dueño o pasajero con solicitud `ACEPTADA` y cupo `RESERVADO` solo cuando la ruta está `EN_CURSO`. `ubicacion` es opcional; latitud y longitud deben enviarse juntas y estar dentro de rango. El backend valida que el tipo esté activo, obtiene su nombre en Oracle y lo pasa al email individual de cada contacto activo; no retorna correos ni detalles internos del proveedor. El usuario confirmó carga del catálogo y reportó que el envío básico de alerta funciona; falta confirmar el email con el tipo seleccionado. No hay persistencia ni historial v1. Idempotencia de 10 minutos y rate limit de 30 segundos dependen de memoria/proceso.
 - **Favoritos:** la implementación descrita en Fase 4 usa `GET /api/usuario/conductores-favoritos`, `GET /api/usuario/conductores-favoritos/candidatos`, `POST /api/usuario/conductores-favoritos` para altas múltiples y `DELETE /api/usuario/conductores-favoritos/:idUpe`. La lista y las escrituras pertenecen al usuario autenticado; no se permiten auto-favoritos ni perfiles que no sean conductores. La propuesta antigua de `POST .../:idUpe` no coincide con el contrato de alta múltiple y no debe usarse como referencia de la implementación.
 - **Detalle y viajes:** `GET /api/conductores/:idUpe` y `GET /api/conductores/:idUpe/viajes?estado=&limite=20&cursor=` requieren autenticación. Estados `ACTIVA`, `EN_CURSO`, `COMPLETADA`; límite default 20, máximo 50, paginación cursor. El código actual redondea ubicaciones a dos decimales; los viajes completados no serializan cupos ni precio. No exponer documentos, correos, teléfonos, pasajeros ni pagos.
 - **Solicitudes desde Favoritos:** reutilizar `POST /api/routes/:id/solicitudes`; validar en servidor perfil pasajero, participación, estado de ruta, cupos y duplicados. El precio se calcula desde `RUTA.PRECIO_CUPO_RUT`, nunca desde un monto confiado al cliente.
@@ -306,7 +307,7 @@ Esta sección reúne contratos y riesgos. Para las fases 3 y 5, la etiqueta “e
 
 Usar cuentas y datos ficticios/dedicados; no copiar al plan los usuarios, documentos, correos, credenciales ni matrículas de los documentos históricos.
 
-1. Fase 3: permisos, transiciones de ruta, coordenadas opcionales, idempotencia, frecuencia, timeout/fallos SMTP y privacidad del correo.
+1. Fase 3: permisos, transiciones de ruta, coordenadas opcionales, idempotencia, frecuencia, timeout/fallos de Gmail API y privacidad del correo.
 2. Fase 5: autenticación, serialización pública, filtros/cursor con más de una página, solicitud elegible y rechazos; regresión de Favoritos/búsqueda/solicitudes.
 3. Fase 6: consentimiento, vínculo entre contacto y dueño, participante/no participante, token/cuenta inválidos, revocación, reconexión, límites, cierre y purga.
 4. Fase 7: miembro/no miembro, contenido/límites, duplicados, borrado propio/ajeno, cierre del viaje y retención/purga.
