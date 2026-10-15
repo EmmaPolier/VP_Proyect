@@ -103,7 +103,7 @@ Esta fase se omite del plan ejecutable a petición del usuario, quien la indica 
 
 ## Fase 5: Detalle, viajes y solicitud desde favoritos
 
-**Estado actual comprobado en el repositorio:** Existen `GET /api/conductores/:idUpe` y `GET /api/conductores/:idUpe/viajes`, autenticados por router y montados en `backend/index.js`. También existe la vista detalle dentro de `frontend/src/components/favorite-drivers.tsx` y la página `/dashboard/passenger/favoritos`. Se reutiliza `POST /api/routes/:id/solicitudes`. Esta lectura confirma presencia/código, no disponibilidad de datos Oracle, segunda página real ni una reserva integrada. Las pruebas Oracle citadas en el estado histórico no se repitieron.
+**Estado actual:** La implementación incluye `GET /api/conductores/:idUpe` y `GET /api/conductores/:idUpe/viajes`, autenticados por router y montados en `backend/index.js`; el detalle, filtros, paginación y CTA están integrados en `frontend/src/components/favorite-drivers.tsx` desde `/dashboard/passenger/favoritos`. La solicitud reutiliza `POST /api/routes/:id/solicitudes`, que obtiene el precio desde la ruta en Oracle y no confía en el importe enviado por el cliente. El usuario confirmó en esta revisión que los viajes funcionan perfectamente desde Favoritos y que la Fase 5 funciona. Esto confirma el flujo funcional reportado, pero no aporta por sí solo evidencia de todos los casos de aceptación que siguen abajo; no se repitieron pruebas HTTP/Oracle ni se verificó una segunda página real en esta revisión.
 
 **Objetivo y resultado esperado:** Desde un favorito el pasajero consulta un perfil de conductor y sus rutas paginadas, con información pública mínima; puede solicitar cupo solo para una ruta `ACTIVA` con disponibilidad. La solicitud se procesa por el endpoint actual y el precio canónico lo determina el servidor.
 
@@ -142,6 +142,13 @@ Esta fase se omite del plan ejecutable a petición del usuario, quien la indica 
 **Criterio de salida**
 - Contrato autenticado y privacidad verificados; paginación real de más de una página probada; solicitud válida y todos los rechazos comprobados con datos aislados; regresión de Favoritos pasa.
 - No dar por cerrada la fase basándose solo en la presencia de código o una prueba de vista sin backend.
+
+**Pendiente para el cierre formal (no se identificó una funcionalidad principal ausente en el código revisado):**
+- Con datos dedicados, comprobar por HTTP los casos de autenticación/ID/perfil/estado/límite/cursor inválidos y verificar que el perfil y cada estado de viaje solo serializan los campos permitidos.
+- Confirmar paginación real con más de 20 rutas: avanzar y volver sin duplicados ni saltos, y comprobar el filtro vacío y reinicio de cursor al cambiar el estado.
+- Probar en aislamiento una solicitud válida y los rechazos por ruta propia, sin cupos, cerrada, duplicada y usuario sin perfil pasajero; verificar que el importe persistido es el precio de `RUTA`, no el enviado por UI.
+- Ejecutar regresión de Favoritos, búsqueda/solicitudes y revisar navegador a 360 px. Resolver o registrar la decisión de si coordenadas redondeadas a dos decimales son suficiente generalización para el producto.
+- Guardar evidencia breve del entorno, datos dedicados y resultados sin incluir identificadores personales ni secretos. No es necesario agregar migraciones para la Fase 5 según el esquema revisado.
 
 **Riesgos y decisiones abiertas**
 - Los endpoints de perfil/viajes requieren autenticación pese a que la respuesta es “pública”; conservar esta decisión mientras no se apruebe un cambio de acceso.
@@ -264,7 +271,7 @@ Esta fase se omite del plan ejecutable a petición del usuario, quien la indica 
 |---|---|---|---|---|
 | 3. Emergencia | ~~Endpoint, membresía, validación de tipo, envío por email e idempotencia implementados~~; pruebas integradas pendientes | ~~Menú de tipos desde catálogo, confirmación, GPS opcional y resultado por intento implementados~~; aceptación pendiente | ~~Catálogo `TIPO_EMERGENCIA` creado; reutiliza ruta, solicitud, cupo y contactos~~; sin tabla de historial v1 | Fase pendiente de confirmar tipo en correo y ejecutar casos de aceptación; no bloquea Fase 5. |
 | 4. Favoritos | Fuera de alcance de este plan; se considera completada por indicación del usuario | — | — | Fase 5 parte de Favoritos disponible; pruebas previas no se repiten aquí. |
-| 5. Detalle/viajes | Endpoint de perfil/viajes y solicitud existente | Detalle, filtros, paginación y CTA | Sin migración identificada; fixtures y dataset >20 rutas | Requiere Favoritos y datos de integración; salida exige paginación real, privacidad y solicitud/rechazos. |
+| 5. Detalle/viajes | Endpoints de perfil/viajes y solicitud existente; el servidor calcula el precio | Detalle, filtros, paginación y CTA conectados desde Favoritos; usuario confirma que viajes funciona | Sin migración identificada | Funcionalidad reportada operativa; para cierre formal faltan evidencias de privacidad/autorización, más de una página real, solicitud/rechazos y regresión. |
 | 6. Compartir ubicación | Definir auth/realtime, membresía, revocación y expiración | Consentimiento, GPS, emisor/destinatario | Migración propuesta para estado/última posición y destinatarios | Contratos/UI/esquema pueden avanzar en paralelo tras decidir política; no publicar hasta superar seguridad y purga. |
 | 7. Chat por viaje | Sala privada, autorización por evento, mensajes y deduplicación | Chat y estados de conexión | Mensajes temporales e índice/purga propuestos | Depende de transporte y ciclo de vida aprobados en Fase 6; la política de retención bloquea producción. |
 
@@ -289,7 +296,7 @@ Esta sección reúne contratos y riesgos. Para las fases 3 y 5, la etiqueta “e
 ### Estado comprobado en esta revisión
 
 - La ruta Express de emergencias, controlador/servicio de email, botón y puntos de montaje están presentes. El usuario reportó que el catálogo se mostró tras confirmar sus INSERT y que el envío básico de alerta por correo funciona; aún no confirmó un correo recibido que incluya el tipo seleccionado.
-- Los endpoints de conductor y la UI detalle/viajes están presentes; la respuesta y comportamiento descritos en Fase 5 reflejan inspección de código, no prueba ejecutada aquí.
+- El usuario confirmó en esta revisión que los viajes funcionan perfectamente desde Favoritos y que la Fase 5 funciona. La inspección confirma endpoints autenticados, filtros/cursor, ocultamiento de precio/cupos en completados y CTA conectado a la solicitud existente; el servidor deriva el importe de la ruta. No se ejecutaron aquí pruebas HTTP/Oracle que demuestren paginación real, privacidad y todos los rechazos, por lo que siguen como evidencia de cierre y no como funcionalidad faltante conocida.
 - Los scripts inspeccionados son incrementales para contactos/favoritos; no se encontró esquema de ubicación/chat ni Socket.IO/WebSocket en los directorios inspeccionados/manifiestos consultados.
 - El usuario indicó que la Fase 4 está completada. La existencia de archivos/scripts se verificó, pero no se repitió integración en Oracle.
 
@@ -308,7 +315,7 @@ Esta sección reúne contratos y riesgos. Para las fases 3 y 5, la etiqueta “e
 Usar cuentas y datos ficticios/dedicados; no copiar al plan los usuarios, documentos, correos, credenciales ni matrículas de los documentos históricos.
 
 1. Fase 3: permisos, transiciones de ruta, coordenadas opcionales, idempotencia, frecuencia, timeout/fallos de Gmail API y privacidad del correo.
-2. Fase 5: autenticación, serialización pública, filtros/cursor con más de una página, solicitud elegible y rechazos; regresión de Favoritos/búsqueda/solicitudes.
+2. Fase 5: completar evidencia de autenticación, serialización pública, filtros/cursor con más de una página, solicitud elegible y rechazos; regresión de Favoritos/búsqueda/solicitudes. El usuario confirma el flujo de viajes desde Favoritos operativo.
 3. Fase 6: consentimiento, vínculo entre contacto y dueño, participante/no participante, token/cuenta inválidos, revocación, reconexión, límites, cierre y purga.
 4. Fase 7: miembro/no miembro, contenido/límites, duplicados, borrado propio/ajeno, cierre del viaje y retención/purga.
 5. Regresión integral: roles, vehículos/rutas/solicitudes, navegación, estados UI y pantallas desde 360 px; cambiar datos compartidos solo con cuentas dedicadas.
