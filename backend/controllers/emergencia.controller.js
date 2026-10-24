@@ -30,21 +30,34 @@ function parseRouteId(value) {
   return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
-function parseLocation(body) {
+function parseEmergencyRequest(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { error: 'El cuerpo debe ser un objeto' };
   }
 
+  // Solo aceptamos el ID del tipo de emergencia y la ubicación opcional.
   const fields = Object.keys(body);
-  if (fields.some((field) => field !== 'ubicacion')) {
+  const hasUnexpectedFields = fields.some(
+    (field) => field !== 'tipoEmergenciaId' && field !== 'ubicacion'
+  );
+
+  if (hasUnexpectedFields) {
     return { error: 'El cuerpo contiene campos no permitidos' };
   }
 
+  const tipoEmergenciaId = body.tipoEmergenciaId;
+
+  if (!Number.isSafeInteger(tipoEmergenciaId) || tipoEmergenciaId <= 0) {
+    return { error: 'Selecciona un tipo de emergencia válido' };
+  }
+
+  // No tener ubicación es válido; puede ocurrir si se deniega el GPS.
   if (!Object.hasOwn(body, 'ubicacion') || body.ubicacion === null) {
-    return { location: null };
+    return { location: null, tipoEmergenciaId };
   }
 
   const location = body.ubicacion;
+
   if (!location || typeof location !== 'object' || Array.isArray(location)) {
     return { error: 'La ubicación debe ser un objeto con latitud y longitud' };
   }
@@ -59,6 +72,7 @@ function parseLocation(body) {
   }
 
   const { latitud, longitud } = location;
+
   if (
     typeof latitud !== 'number' ||
     typeof longitud !== 'number' ||
@@ -72,7 +86,10 @@ function parseLocation(body) {
     return { error: 'Las coordenadas están fuera de rango' };
   }
 
-  return { location: { latitud, longitud } };
+  return {
+    location: { latitud, longitud },
+    tipoEmergenciaId,
+  };
 }
 
 function removeExpiredEntries(now) {
@@ -84,13 +101,21 @@ function removeExpiredEntries(now) {
   }
 }
 
-async function dispatchEmergency({ routeId, userName, route, contacts, location }) {
+async function dispatchEmergency({
+  routeId,
+  userName,
+  route,
+  contacts,
+  location,
+  tipoEmergencia,
+}) {
   const now = new Date();
   const results = await Promise.allSettled(
     contacts.map((contact) => sendEmergencyNotification({
       to: contact.email,
       userName,
       routeId,
+      tipoEmergencia,
       departure: route.departure,
       origin: route.origin,
       destination: route.destination,
@@ -123,15 +148,27 @@ export async function sendRouteEmergency(req, res) {
   const routeId = parseRouteId(req.params.id);
   if (!routeId) return sendError(res, 400, 'El ID de ruta debe ser un entero positivo', 'DATOS_INVALIDOS');
 
-  const { location, error: locationError } = parseLocation(req.body ?? {});
-  if (locationError) return sendError(res, 400, locationError, 'DATOS_INVALIDOS');
+  const {
+    location,
+    tipoEmergenciaId,
+    error: requestError,
+    } = parseEmergencyRequest(req.body ?? {});
+
+    if (requestError) {
+      return sendError(res, 400, requestError, 'DATOS_INVALIDOS');
+    }
+
 
   const idempotencyKey = req.get('Idempotency-Key');
   if (typeof idempotencyKey !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idempotencyKey)) {
     return sendError(res, 400, 'Se requiere un Idempotency-Key UUID válido', 'DATOS_INVALIDOS');
   }
 
-  const fingerprint = JSON.stringify({ routeId, location });
+  const fingerprint = JSON.stringify({ 
+    routeId, 
+    tipoEmergenciaId,
+    location,
+  });
   const idempotencyId = `${document}:${idempotencyKey}`;
   const rateLimitId = `${document}:${routeId}`;
   const now = Date.now();
@@ -159,6 +196,26 @@ export async function sendRouteEmergency(req, res) {
   let connection;
   try {
     connection = await getConnection();
+
+    const typeResult = await connection.execute(
+      `SELECT ID_TEM, NOMBRE_TEM
+      FROM TIPO_EMERGENCIA
+      WHERE ID_TEM = :tipoEmergenciaId
+      AND ACTIVO_TEM = 'S'`,
+      { tipoEmergenciaId }
+    )
+
+    if (!typeResult.rows?.length) {
+      return sendError(
+        res,
+        400,
+        'El tipo de emergencia seleccionado no es válido o no está activo',
+        'TIPO_EMERGENCIA_NO_VALIDO'
+      );
+    }
+
+    const typeName = typeResult.rows[0][1];
+
     const routeResult = await connection.execute(
       `SELECT er.NOMBRE_ERU,
               TO_CHAR(r.HORA_SALIDA_RUT, 'YYYY-MM-DD HH24:MI'),
@@ -258,7 +315,8 @@ export async function sendRouteEmergency(req, res) {
       route,
       contacts,
       location,
-    });
+      tipoEmergencia: typeName,
+    })
     idempotencyEntries.set(idempotencyId, {
       fingerprint,
       expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,

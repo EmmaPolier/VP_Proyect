@@ -15,11 +15,13 @@ import {
   startRoute,
 } from '../controllers/route.controller.js';
 import { sendRouteEmergency } from '../controllers/emergencia.controller.js';
+import { listTypeEmergencies } from '../controllers/tipo-emergencia.controller.js';
 
 const router = express.Router();
 
 // Rutas públicas de búsqueda de rutas
 router.get('/search', searchRoutes);
+router.get('/tipos-emergencia', authMiddleware, listTypeEmergencies);
 router.post('/', authMiddleware, createRoute);
 
 // Solicitudes de cupo - requieren autenticación
