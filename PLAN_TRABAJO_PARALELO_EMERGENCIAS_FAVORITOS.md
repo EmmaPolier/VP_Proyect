@@ -60,7 +60,7 @@ Cada área tiene un solo responsable de escritura. Los demás contribuyen median
 - El flujo reutiliza la ruta, solicitud, cupo y contacto existentes; no depende de tabla de alertas.
 - La versión backend y frontend deben usar el mismo contrato ya montado. Se puede simular el servicio SMTP para probar fallos sin notificar contactos reales.
 
-**Crear o modificar**
+~~**Crear o modificar**
 - **Datos:** no crear tablas de alertas ni historial en v1. La revisión encontró los scripts existentes de contactos; confirmar que la base aislada tiene `CONTACTO_EMERGENCIA.ACTIVO_CEM` antes de probar.
 - **Backend existente:** `backend/controllers/emergencia.controller.js`, `backend/routes/route.routes.js`, `backend/services/email.service.js` y el montaje `/api/routes` en `backend/index.js`. No crear endpoints alternativos.
 - **Frontend existente:** `frontend/src/components/dashboard/emergency-alert-button.tsx`, el montaje en `frontend/src/components/dashboard/content.tsx` y la constante en `frontend/src/lib/api-constants.ts`.
@@ -78,7 +78,7 @@ Cada área tiene un solo responsable de escritura. Los demás contribuyen median
 **Integrar**
 1. Usar primero contactos y rutas de integración; luego desplegar/levantar backend y verificar endpoint con cliente HTTP y SMTP simulado.
 2. Integrar el botón en conductor y pasajero aceptado, siguiendo el mismo JWT del cliente API; iniciar ruta mediante el flujo ya existente y confirmar que el botón solo aparece en estado `EN_CURSO`.
-3. Probar con Oracle aislado y dos identidades; no ejecutar pruebas con correos reales. No desplegar migración nueva para esta fase.
+3. Probar con Oracle aislado y dos identidades; no ejecutar pruebas con correos reales. No desplegar migración nueva para esta fase.~~
 
 **Pruebas de aceptación**
 - Dueño en ruta `EN_CURSO` y pasajero aceptado/reservado envían alerta; pendiente, ajeno y pasajero sin cupo reservado no pueden.
@@ -111,7 +111,7 @@ Esta fase se omite del plan ejecutable a petición del usuario, quien la indica 
 - Backend/Oracle de integración y usuarios con ruta activa futura, ruta llena, ruta cerrada y al menos 21 resultados para validar paginación.
 - El frontend puede probar presentación con fixtures del contrato; reservas reales solo con identidades/rutas dedicadas y permiso para modificar la base.
 
-**Crear o modificar**
+~~**Crear o modificar**
 - **Datos:** no se identificó requisito de migración. Las consultas usan `USUARIO_PERFIL`, `PERFIL`, `USUARIO`, `ESTADO_USUARIO`, `RUTA` y `ESTADO_RUTA`; datos de prueba deben prepararse en esquema aislado.
 - **Backend existente:** `backend/controllers/conductores.controller.js`, `backend/routes/conductores.routes.js`, su montaje en `backend/index.js`; solicitud existente en `backend/controllers/route.controller.js` y `backend/routes/route.routes.js`.
 - **Frontend existente:** `frontend/src/components/favorite-drivers.tsx`, `frontend/src/app/dashboard/passenger/favoritos/page.tsx` y URLs en `frontend/src/lib/api-constants.ts`.
@@ -129,7 +129,7 @@ Esta fase se omite del plan ejecutable a petición del usuario, quien la indica 
 **Integrar**
 1. Validar primero respuestas de perfil/viajes por HTTP con JWT; comprobar filtros, cursor y serialización antes de enlazar UI.
 2. Conectar la página de Favoritos y probar con respuesta real; usar fixtures solo para pruebas visuales.
-3. Probar solicitud en entorno aislado: comparar importe mostrado con precio de base, pero modificar datos solo con cuentas dedicadas. Ejecutar regresión de listado, alta/baja de Favoritos, búsqueda y solicitudes.
+3. Probar solicitud en entorno aislado: comparar importe mostrado con precio de base, pero modificar datos solo con cuentas dedicadas. Ejecutar regresión de listado, alta/baja de Favoritos, búsqueda y solicitudes.~~
 
 **Pruebas de aceptación**
 - Sin token: `401`; ID mal formado: `400`; perfil inexistente/no conductor: `404`; filtro/límite/cursor inválido: `400`.
