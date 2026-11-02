@@ -16,6 +16,7 @@ import {
 } from '../controllers/route.controller.js';
 import { sendRouteEmergency } from '../controllers/emergencia.controller.js';
 import { listTypeEmergencies } from '../controllers/tipo-emergencia.controller.js';
+import { createMessage, getChatGroups, getMessages } from '../controllers/mensaje-ruta.controller.js';
 
 const router = express.Router();
 
@@ -23,6 +24,9 @@ const router = express.Router();
 router.get('/search', searchRoutes);
 router.get('/tipos-emergencia', authMiddleware, listTypeEmergencies);
 router.post('/', authMiddleware, createRoute);
+router.get('/chat-grupos', authMiddleware, getChatGroups);
+router.get('/:id/mensajes', authMiddleware, getMessages);
+router.post('/:id/mensajes', authMiddleware, createMessage);
 
 // Solicitudes de cupo - requieren autenticación
 router.post('/:id/solicitudes', authMiddleware, createSolicitud);

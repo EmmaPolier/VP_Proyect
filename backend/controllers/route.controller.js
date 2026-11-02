@@ -299,7 +299,18 @@ export async function createRoute(req, res) {
          SYSDATE,
          SYSDATE
        )`,
-      { driverProfileId, vehicleId, activeStateId, originLat, originLng, destinationLat, destinationLng, departure: departureFormatted, availableSeats, price },
+      {
+        driverProfileId,
+        vehicleId,
+        activeStateId,
+        originLat,
+        originLng,
+        destinationLat,
+        destinationLng,
+        departure: departureFormatted,
+        availableSeats,
+        price,
+      },
       { autoCommit: true }
     );
 
